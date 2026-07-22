@@ -1,0 +1,28 @@
+{
+  "enable": true,
+  "isOrganic": true,
+  "timeout_total": 30000,
+  "list_ads": [
+    {
+      "enable_ad": true,
+      "weight": 120,
+      "timeout": 15000,
+      "type": "inter",
+      "adunit": "{{INTER_HF}}"
+    },
+    {
+      "enable_ad": true,
+      "weight": 110,
+      "timeout": 15000,
+      "type": "appopen",
+      "adunit": "{{APPOPEN_HF}}"
+    },
+    {
+      "enable_ad": true,
+      "weight": 100,
+      "timeout": 15000,
+      "type": "native",
+      "adunit": "{{NATIVE_HF}}"
+    }
+  ]
+}

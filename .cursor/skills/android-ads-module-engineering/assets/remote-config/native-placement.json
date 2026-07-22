@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "placement_id": "LANGUAGE_NATIVE",
+  "enabled": true,
+  "audience": {
+    "paid": true,
+    "organic": false,
+    "unknown": false
+  },
+  "weight": 40,
+  "load_strategy": "sequential_list_until_success",
+  "layout": "native_small_cta_bottom",
+  "cache": {
+    "scope": "placement",
+    "ttl_ms": 3600000,
+    "target_ready_count": 1,
+    "refill_when_deficit": true
+  },
+  "turnback": {
+    "eligible": true
+  },
+  "candidates": [
+    {
+      "id": "native_language_hf",
+      "enabled": true,
+      "tier": "high_floor",
+      "ad_unit_id": "{{N4_AD_UNIT_ID}}"
+    },
+    {
+      "id": "native_language_allprice",
+      "enabled": true,
+      "tier": "all_price",
+      "ad_unit_id": "{{N3_AD_UNIT_ID}}"
+    }
+  ]
+}

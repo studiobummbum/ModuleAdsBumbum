@@ -1,0 +1,1 @@
+// Root build configuration is intentionally empty during workspace verification.

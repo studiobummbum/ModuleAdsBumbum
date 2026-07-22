@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "screens": [
+    {
+      "screen": 1,
+      "enabled": true,
+      "weight": 60
+    },
+    {
+      "screen": 2,
+      "enabled": true,
+      "weight": 70
+    },
+    {
+      "screen": 3,
+      "enabled": true,
+      "weight": 80
+    },
+    {
+      "screen": 4,
+      "enabled": true,
+      "weight": 90
+    }
+  ]
+}

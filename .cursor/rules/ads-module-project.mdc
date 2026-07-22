@@ -1,0 +1,127 @@
+---
+description: Các invariant bắt buộc của Android Ads Module greenfield
+globs:
+alwaysApply: true
+---
+
+# Android Ads Module Project Rule
+
+## Phạm vi
+
+Đây là project xây mới hoàn toàn. Không có codebase cũ và không có migration.
+
+## Kiến trúc Android
+
+- Kotlin.
+- XML Layout và ViewBinding.
+- Activity, Fragment và ViewPager2.
+- Coroutines, StateFlow và SharedFlow.
+- Multi-module Gradle.
+- Không chuyển sang Jetpack Compose nếu task không yêu cầu.
+- Không để ads-core phụ thuộc Activity cụ thể, View hoặc Google Mobile Ads SDK.
+
+## Remote Config gốc
+
+- Mỗi vị trí có một Remote Config riêng.
+- Mỗi config quảng cáo có đúng một `list_ads`.
+- Không đổi `list_ads` thành `candidates`.
+- Không tạo `candidate_sets`.
+- Không đổi tên field gốc.
+- Chỉ sửa JSON invalid.
+- `inter_splash_config_1` có thể trộn `inter`, `appopen`, `native` trong cùng list.
+
+## Weight
+
+- Weight nằm trên từng item: `list_ads[].weight`.
+- Không tạo weight chung cho placement/config/list.
+- Runtime lọc `enable_ad=true`, sort `weight DESC`, tie-break bằng index gốc.
+- Một config chỉ có một SDK request LOADING tại một thời điểm.
+- Object load thành công phải lưu weight của chính item success.
+
+## StoredAd
+
+Bắt buộc lưu:
+- objectId
+- sourceConfigKey
+- sourceListIndex
+- sourceType
+- sourceAdunit
+- sourceWeight
+- screenInstanceId
+- loadedAt
+- state
+- sdkHandle
+
+## Turnback và refill
+
+- Normal screen lấy object đúng config/screen.
+- Turnback chọn object Native/Banner eligible có sourceWeight cao nhất.
+- Atomic pop phải giữ source metadata.
+- Refill bắt đầu ngay sau atomic pop.
+- Refill chạy lại toàn bộ `list_ads` của sourceConfigKey.
+- Không reload cứng đúng ad unit cũ.
+- Dedupe refill theo sourceConfigKey + screenInstanceId.
+
+## Screen flow
+
+```text
+SplashActivity
+→ LanguageLoadingActivity
+→ LanguageActivity
+→ LanguageDupActivity
+→ ApplyLanguageActivity khoảng 2 giây
+→ OnboardingActivity Pager 1
+→ Pager 2
+→ OnboardingFull1Activity
+→ Pager 3
+→ OnboardingFull2Activity
+→ Pager 4
+→ Home
+```
+
+- Onboarding chỉ có một Activity và bốn Fragment trong ViewPager2.
+- Mỗi pager có screenInstanceId và Native object riêng.
+- Pager 2 tiến phải qua Full 1.
+- Pager 3 tiến phải qua Full 2.
+- Full 1 trả Pager 3.
+- Full 2 trả Pager 4.
+- Turnback/recreation không được reset currentPager.
+
+## Full Activity
+
+Full 1/2 hỗ trợ:
+- SWIPE_FORWARD
+- CLOSE_X
+- AUTO_SKIP
+
+- X nằm top-right, tôn trọng safe inset và `time_delay_X_button`.
+- Swipe không được chiếm gesture CTA/media/clickable ad assets.
+- Cả ba gọi chung `finishAndContinueOnce`.
+- First-wins bằng AtomicBoolean/CAS.
+- Callback cũ bị ignore.
+- System Back chưa được đồng nhất với X; trong demo phải intercept và log, không tự đoán policy.
+
+## Splash Skip
+
+- Chỉ bắt đầu timer sau fullscreen Splash show success.
+- Không bắt đầu từ load/READY.
+- Hết time_skip mở LanguageLoadingActivity lên trên ad.
+- Không giả lập X và không gọi SDK dismiss.
+- Timer và dismiss dùng chung navigation gate.
+
+## Quy trình làm việc
+
+Trước khi code:
+1. Tóm tắt phạm vi.
+2. Liệt kê file sẽ tạo/sửa.
+3. Liệt kê invariant cần bảo vệ.
+4. Nêu test sẽ viết.
+
+Sau khi code:
+1. Chạy test phù hợp.
+2. Chạy Gradle build phù hợp.
+3. Báo file đã tạo/sửa.
+4. Báo test/build pass hoặc fail.
+5. Không tuyên bố hoàn thành khi còn lỗi.
+6. Không tự git commit hoặc push.
+7. Không mở rộng ngoài phase hiện tại.

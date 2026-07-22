@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "enabled": true,
+  "audience": {
+    "paid": true,
+    "organic": false,
+    "unknown": false
+  },
+  "return_after_ms": 2500,
+  "show_delay_after_resume_ms": 1000,
+  "eligible_formats": [
+    "native",
+    "banner"
+  ],
+  "selection": "highest_weight",
+  "require_ad_click_token": true,
+  "suppress_app_open_ms": 10000,
+  "refill": {
+    "trigger": "immediately_on_atomic_pop",
+    "queue_order": "weight_desc",
+    "dedupe_key": "placement_instance_id",
+    "start_while_borrowed_ad_is_showing": true
+  }
+}

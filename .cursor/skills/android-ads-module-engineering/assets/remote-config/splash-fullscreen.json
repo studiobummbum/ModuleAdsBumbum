@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "placement_id": "SPLASH_FULLSCREEN",
+  "enabled": true,
+  "audience": {
+    "paid": true,
+    "organic": true,
+    "unknown": false
+  },
+  "format_mode": "interstitial",
+  "load_strategy": "sequential_list_with_timeout",
+  "total_timeout_ms": 30000,
+  "candidate_sets": {
+    "interstitial": [
+      {
+        "id": "inter_splash_hf",
+        "enabled": true,
+        "tier": "high_floor",
+        "ad_unit_id": "{{I2_AD_UNIT_ID}}",
+        "load_timeout_ms": 15000
+      },
+      {
+        "id": "inter_splash_allprice",
+        "enabled": true,
+        "tier": "all_price",
+        "ad_unit_id": "{{I1_AD_UNIT_ID}}",
+        "load_timeout_ms": 15000
+      }
+    ],
+    "app_open": [
+      {
+        "id": "appopen_splash_hf",
+        "enabled": true,
+        "tier": "high_floor",
+        "ad_unit_id": "{{A4_AD_UNIT_ID}}",
+        "load_timeout_ms": 15000
+      },
+      {
+        "id": "appopen_splash_allprice",
+        "enabled": true,
+        "tier": "all_price",
+        "ad_unit_id": "{{A3_AD_UNIT_ID}}",
+        "load_timeout_ms": 15000
+      }
+    ]
+  }
+}
