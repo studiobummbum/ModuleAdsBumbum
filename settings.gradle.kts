@@ -23,3 +23,11 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "ModuleAdsExample"
+
+include(
+    ":app-demo",
+    ":ads-core",
+    ":ads-sdk-core",
+    ":ads-sdk-fake",
+    ":ads-debug",
+)

@@ -1,0 +1,16 @@
+[versions]
+agp = "9.3.0"
+appcompat = "1.7.1"
+coroutines = "1.10.2"
+junit4 = "4.13.2"
+material = "1.13.0"
+
+[libraries]
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+junit4 = { module = "junit:junit", version.ref = "junit4" }
+material = { module = "com.google.android.material:material", version.ref = "material" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }

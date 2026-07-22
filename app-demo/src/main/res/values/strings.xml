@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Module Ads Example</string>
+    <string name="project_status_loading">Checking module status…</string>
+    <string name="project_status_value">Project status\n%1$s\n%2$s</string>
+    <string name="open_debug_dashboard">Open Debug Dashboard</string>
+</resources>

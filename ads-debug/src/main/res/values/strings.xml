@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="debug_dashboard_title">Debug Dashboard</string>
+    <string name="debug_dashboard_placeholder">Controls and diagnostics will be added in a later phase.</string>
+    <string name="close_debug_dashboard">Close dashboard</string>
+</resources>
