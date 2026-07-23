@@ -19,6 +19,7 @@ class AdsDebugDashboardActivityTest {
             scenario.onActivity { activity ->
                 assertNotNull(activity.findViewById(R.id.debug_fragment_container))
                 activity.openDestination(DebugDestination.STORAGE)
+                activity.supportFragmentManager.executePendingTransactions()
                 assertNotNull(
                     activity.supportFragmentManager.findFragmentByTag(DebugDestination.STORAGE.name),
                 )

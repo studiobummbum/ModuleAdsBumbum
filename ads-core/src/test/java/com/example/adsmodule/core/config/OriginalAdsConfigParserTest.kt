@@ -85,4 +85,29 @@ class OriginalAdsConfigParserTest {
         assertEquals(4, (onboardResult.value as OnboardAdsConfig).entries.size)
         assertTrue((booleanResult.value as BooleanConfigValue).value)
     }
+
+    @Test
+    fun curlyQuoteJson_failsWithInvalidJson() {
+        val result = parser.parse(splashDescriptor, FIXTURE_CURLY_QUOTE_JSON)
+        assertTrue(result is OriginalConfigParseResult.Failure)
+        assertTrue(result.issues.any { it.code == ConfigIssueCode.INVALID_JSON })
+    }
+
+    @Test
+    fun missingCommaJson_failsWithInvalidJson() {
+        val result = parser.parse(splashDescriptor, FIXTURE_MISSING_COMMA_JSON)
+        assertTrue(result is OriginalConfigParseResult.Failure)
+        assertTrue(result.issues.any { it.code == ConfigIssueCode.INVALID_JSON })
+    }
+
+    @Test
+    fun mixedInterAppopenNativeFixture_keepsSingleListAds() {
+        val result = parser.parse(
+            splashDescriptor,
+            FIXTURE_MIXED_INTER_APPOPEN_NATIVE_JSON,
+        ) as OriginalConfigParseResult.Success
+        val items = (result.value as AdsConfigValue).config.listAds
+        assertEquals(listOf("inter", "appopen", "native"), items.map { it.type })
+        assertEquals(listOf(100, 90, 80), items.map { it.weight })
+    }
 }

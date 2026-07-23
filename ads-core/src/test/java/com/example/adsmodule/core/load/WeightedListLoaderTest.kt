@@ -239,6 +239,52 @@ class WeightedListLoaderTest {
     }
 
     @Test
+    fun mixedTypes_interAndAppOpenFail_nativeSuccessStoresWeight80() = runTest {
+        val env = LoaderTestEnvironment(this)
+        val key = ConfigKey("inter_splash_config_1")
+        env.fail(key, index = 0, adUnit = "inter-unit")
+        env.fail(key, index = 1, adUnit = "appopen-unit")
+        env.success(key, index = 2, adUnit = "native-unit")
+        val result = env.loader.load(
+            env.request(
+                configKey = key,
+                config = adsConfig(
+                    items = listOf(
+                        item(
+                            enableAd = true,
+                            weight = 100,
+                            adunit = "inter-unit",
+                            index = 0,
+                            type = "inter",
+                        ),
+                        item(
+                            enableAd = true,
+                            weight = 90,
+                            adunit = "appopen-unit",
+                            index = 1,
+                            type = "appopen",
+                        ),
+                        item(
+                            enableAd = true,
+                            weight = 80,
+                            adunit = "native-unit",
+                            index = 2,
+                            type = "native",
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val success = result as WeightedLoadResult.Success
+        assertEquals(AdFormat.NATIVE_FULLSCREEN, success.storedAd.sourceType)
+        assertEquals(80, success.storedAd.sourceWeight)
+        assertEquals("native-unit", success.storedAd.sourceAdunit)
+        assertEquals(2, success.storedAd.sourceListIndex)
+        assertEquals(key, success.storedAd.sourceConfigKey)
+    }
+
+    @Test
     fun typelessConfigs_useFixedDefaultFormats() = runTest {
         val cases = listOf(
             ConfigKey("appopen_resume_config_1") to AdFormat.APP_OPEN,

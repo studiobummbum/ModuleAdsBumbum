@@ -3,7 +3,6 @@ package com.example.adsmodule.core.splash
 import com.example.adsmodule.core.AudienceType
 import com.example.adsmodule.core.Clock
 import com.example.adsmodule.core.ConfigKey
-import com.example.adsmodule.core.IdGenerator
 import com.example.adsmodule.core.SessionId
 import com.example.adsmodule.core.config.AdsConfigSnapshot
 import com.example.adsmodule.core.config.AdsConfigValue
@@ -20,6 +19,7 @@ import com.example.adsmodule.core.lifecycle.AdsLifecycleCoordinator
 import com.example.adsmodule.core.lifecycle.ForegroundSessionTracker
 import com.example.adsmodule.core.load.WeightedListLoader
 import com.example.adsmodule.core.storage.AdStorage
+import com.example.adsmodule.core.testsupport.SequentialIdGenerator
 import com.example.adsmodule.core.turnback.AdClickTokenStore
 import com.example.adsmodule.core.OriginalAdItem
 import com.example.adsmodule.core.OriginalAdsConfig
@@ -31,7 +31,6 @@ import com.example.adsmodule.fake.FakeScenario
 import com.example.adsmodule.fake.FakeScenarioConfig
 import com.example.adsmodule.fake.SequentialFakeObjectIdGenerator
 import com.example.adsmodule.sdk.AdSdkAdapterRegistry
-import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -110,6 +109,31 @@ class SplashFlowCoordinatorTest {
     }
 
     @Test
+    fun appOpenShownStartsSkipTimer() = runTest {
+        val env = Env(this)
+        env.controller.setScenario(
+            FakeAdItemKey("inter_splash_config_1", 0, "appopen-0"),
+            FakeScenarioConfig(dismissDelayMillis = 60_000L),
+        )
+        env.coordinator.startOrAttach(env.snapshot(primaryType = "appopen", primaryAdunit = "appopen-0"))
+        var guard = 0
+        while (
+            env.coordinator.snapshot.value?.skipTimer?.state != SplashSkipTimerState.RUNNING &&
+            guard < 200
+        ) {
+            runCurrent()
+            advanceTimeBy(1L)
+            guard++
+        }
+        assertEquals(SplashSkipTimerState.RUNNING, env.coordinator.snapshot.value!!.skipTimer.state)
+        advanceTimeBy(8_000L)
+        runCurrent()
+        assertEquals(SplashStage.NATIVE_FULL, env.coordinator.snapshot.value!!.stage)
+        env.coordinator.cancelNow()
+        runCurrent()
+    }
+
+    @Test
     fun timerAndDismissRace_nativeFullOnce() = runTest {
         val env = Env(this)
         env.controller.setScenario(
@@ -176,6 +200,119 @@ class SplashFlowCoordinatorTest {
         )
         env.coordinator.cancelNow()
         advanceUntilIdle()
+    }
+
+    @Test
+    fun skipDisabled_doesNotStartTimerAfterShow() = runTest {
+        val env = Env(this)
+        env.controller.setScenario(
+            FakeAdItemKey("inter_splash_config_1", 0, "inter-0"),
+            FakeScenarioConfig(dismissDelayMillis = 60_000L),
+        )
+        env.coordinator.startOrAttach(env.snapshot(skipEnable = false))
+        var guard = 0
+        while (
+            env.coordinator.snapshot.value?.primaryShowRequestId == null &&
+            env.coordinator.snapshot.value?.stage != SplashStage.NATIVE_FULL &&
+            guard < 200
+        ) {
+            runCurrent()
+            advanceTimeBy(1L)
+            guard++
+        }
+        advanceTimeBy(8_000L)
+        runCurrent()
+        val snap = env.coordinator.snapshot.value!!
+        assertEquals(SplashSkipTimerState.NOT_STARTED, snap.skipTimer.state)
+        env.coordinator.cancelNow()
+        runCurrent()
+    }
+
+    @Test
+    fun skipOrganicMismatch_doesNotStartTimerAfterShow() = runTest {
+        val env = Env(this, audience = AudienceType.ORGANIC)
+        env.controller.setScenario(
+            FakeAdItemKey("inter_splash_config_1", 0, "inter-0"),
+            FakeScenarioConfig(dismissDelayMillis = 60_000L),
+        )
+        env.coordinator.startOrAttach(
+            env.snapshot(skipOrganic = false, bannerOrganic = true),
+        )
+        var guard = 0
+        while (
+            env.coordinator.snapshot.value?.primaryShowRequestId == null &&
+            env.coordinator.snapshot.value?.stage != SplashStage.NATIVE_FULL &&
+            guard < 200
+        ) {
+            runCurrent()
+            advanceTimeBy(1L)
+            guard++
+        }
+        advanceTimeBy(8_000L)
+        runCurrent()
+        assertEquals(
+            SplashSkipTimerState.NOT_STARTED,
+            env.coordinator.snapshot.value!!.skipTimer.state,
+        )
+        env.coordinator.cancelNow()
+        runCurrent()
+    }
+
+    @Test
+    fun nativePrimary_advancesToNativeFullWithoutSkipTimer() = runTest {
+        val env = Env(this)
+        env.controller.setScenario(
+            FakeAdItemKey("inter_splash_config_1", 0, "native-primary"),
+            FakeScenarioConfig(),
+        )
+        env.coordinator.startOrAttach(
+            env.snapshot(primaryType = "native", primaryAdunit = "native-primary"),
+        )
+        var guard = 0
+        while (
+            env.coordinator.snapshot.value?.stage != SplashStage.NATIVE_FULL &&
+            guard < 200
+        ) {
+            runCurrent()
+            advanceTimeBy(1L)
+            guard++
+        }
+        val snap = env.coordinator.snapshot.value
+        assertEquals(SplashStage.NATIVE_FULL, snap!!.stage)
+        assertEquals(SplashSkipTimerState.NOT_STARTED, snap.skipTimer.state)
+        env.coordinator.cancelNow()
+        runCurrent()
+    }
+
+    @Test
+    fun recreationAttach_keepsSessionAndSkipTimer() = runTest {
+        val env = Env(this)
+        env.controller.setScenario(
+            FakeAdItemKey("inter_splash_config_1", 0, "inter-0"),
+            FakeScenarioConfig(dismissDelayMillis = 60_000L),
+        )
+        val first = env.coordinator.startOrAttach(env.snapshot())
+        var guard = 0
+        while (
+            env.coordinator.snapshot.value?.skipTimer?.state != SplashSkipTimerState.RUNNING &&
+            guard < 200
+        ) {
+            runCurrent()
+            advanceTimeBy(1L)
+            guard++
+        }
+        assertEquals(SplashSkipTimerState.RUNNING, env.coordinator.snapshot.value!!.skipTimer.state)
+        val reattached = env.coordinator.startOrAttach(
+            env.snapshot(),
+            existingSessionId = first.sessionId,
+        )
+        assertEquals(first.sessionId, reattached.sessionId)
+        assertEquals(SplashSkipTimerState.RUNNING, reattached.skipTimer.state)
+        advanceTimeBy(8_000L)
+        runCurrent()
+        assertEquals(SplashStage.NATIVE_FULL, env.coordinator.snapshot.value!!.stage)
+        env.coordinator.cancelNow()
+        runCurrent()
     }
 
     @Test
@@ -273,6 +410,9 @@ class SplashFlowCoordinatorTest {
         fun snapshot(
             bannerOrganic: Boolean = false,
             skipOrganic: Boolean = false,
+            skipEnable: Boolean = true,
+            primaryType: String? = "inter",
+            primaryAdunit: String = "inter-0",
         ): AdsConfigSnapshot {
             fun ads(
                 enable: Boolean = true,
@@ -303,7 +443,7 @@ class SplashFlowCoordinatorTest {
 
             val configs = linkedMapOf(
                 ConfigKey("inter_splash_config_1") to resolved(
-                    AdsConfigValue(ads(type = "inter", adunit = "inter-0")),
+                    AdsConfigValue(ads(type = primaryType, adunit = primaryAdunit)),
                     """{"k":"inter"}""",
                 ),
                 ConfigKey("native_splash_config_1") to resolved(
@@ -333,7 +473,7 @@ class SplashFlowCoordinatorTest {
                 ),
                 ConfigKey("splash_skip_ads") to resolved(
                     SplashSkipConfig(
-                        enable = true,
+                        enable = skipEnable,
                         isOrganic = skipOrganic,
                         timeSkipMillis = 8_000L,
                     ),
@@ -344,16 +484,7 @@ class SplashFlowCoordinatorTest {
                     "true",
                 ),
             )
-            // Fill remaining registry keys with harmless placeholders for snapshot completeness
-            // is not required by AdsConfigSnapshot.create — only provided keys are used.
             return AdsConfigSnapshot.create(version = 1L, configs = configs)
         }
-    }
-
-    private class SequentialIdGenerator(
-        private val prefix: String = "id",
-    ) : IdGenerator {
-        private val next = AtomicLong(0L)
-        override fun nextId(): String = "$prefix-${next.incrementAndGet()}"
     }
 }

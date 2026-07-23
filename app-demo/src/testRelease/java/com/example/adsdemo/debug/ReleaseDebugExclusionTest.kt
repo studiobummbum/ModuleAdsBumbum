@@ -1,20 +1,22 @@
 package com.example.adsdemo.debug
 
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/**
+ * Release classpath must exclude debug-only entry points (debugImplementation / debug source set).
+ */
 class ReleaseDebugExclusionTest {
     @Test
-    fun debugClasspath_includesDebugEntryPoints() {
+    fun releaseClasspath_excludesDebugEntryPoints() {
         val installer = runCatching {
             Class.forName("com.example.adsdemo.debug.DebugNavInstaller")
         }.isSuccess
         val dashboard = runCatching {
             Class.forName("com.example.adsmodule.debug.AdsDebugDashboardActivity")
         }.isSuccess
-        assertTrue(installer)
-        assertTrue(dashboard)
+        assertFalse(installer)
+        assertFalse(dashboard)
     }
 
     @Test
