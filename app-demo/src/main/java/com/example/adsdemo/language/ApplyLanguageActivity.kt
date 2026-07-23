@@ -66,12 +66,14 @@ class ApplyLanguageActivity : AppCompatActivity() {
                         if (viewModel.claimEffect(LanguageNavigationEffect.OPEN_ONBOARDING)) {
                             startActivity(
                                 Intent(this@ApplyLanguageActivity, OnboardingActivity::class.java)
-                                    .putExtra(OnboardingActivity.EXTRA_SESSION_ID, snap.sessionId.value)
+                                    .putExtra(
+                                        OnboardingActivity.EXTRA_LANGUAGE_SESSION_ID,
+                                        snap.sessionId.value,
+                                    )
                                     .putExtra(
                                         OnboardingActivity.EXTRA_LANGUAGE_TAG,
                                         snap.selectedLanguage?.tag,
-                                    )
-                                    .putExtra(OnboardingActivity.EXTRA_PAGER_INDEX, 1),
+                                    ),
                             )
                             finish()
                         }

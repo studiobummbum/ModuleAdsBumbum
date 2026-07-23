@@ -33,6 +33,12 @@ public class AdsConfigSnapshot private constructor(
     public fun adsConfig(key: ConfigKey): OriginalAdsConfig? =
         (resolvedConfigs[key]?.value as? AdsConfigValue)?.config
 
+    public fun onboardAdsConfig(): OnboardAdsConfig? =
+        (resolvedConfigs[ConfigKey("onboard_ads_config")]?.value as? OnboardAdsConfig)
+
+    public fun onboardScreenConfig(): OnboardScreenConfig? =
+        (resolvedConfigs[ConfigKey("onboard_screen_config")]?.value as? OnboardScreenConfig)
+
     public companion object {
         public fun create(
             version: Long,

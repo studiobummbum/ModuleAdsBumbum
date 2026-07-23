@@ -34,6 +34,12 @@
             android:name=".onboarding.OnboardingActivity"
             android:exported="false" />
         <activity
+            android:name=".onboarding.OnboardingFull1Activity"
+            android:exported="false" />
+        <activity
+            android:name=".onboarding.OnboardingFull2Activity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:exported="false" />
     </application>

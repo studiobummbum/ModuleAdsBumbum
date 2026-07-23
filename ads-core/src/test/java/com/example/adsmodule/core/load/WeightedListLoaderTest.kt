@@ -794,7 +794,7 @@ class WeightedListLoaderTest {
     fun success_preservesSourceMetadataAndDebugState() = runTest {
         val env = LoaderTestEnvironment(this)
         val key = ConfigKey("native_onboarding_config_1")
-        val screen = ScreenInstanceId("onboarding-page-2")
+        val screen = ScreenInstanceId("ONBOARD_NATIVE#2")
         env.success(key, index = 1, adUnit = "page-native")
         val request = env.request(
             configKey = key,

@@ -10,6 +10,7 @@ import com.example.adsmodule.core.normal.NormalScreenAdCoordinator
 import com.example.adsmodule.core.normal.NormalScreenBindResult
 import com.example.adsmodule.core.normal.NormalScreenBindSession
 import com.example.adsmodule.core.normal.NormalScreenUnbindMode
+import com.example.adsmodule.core.onboarding.OnboardingAdCoordinator
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +40,7 @@ public class LanguageFlowCoordinator(
     private val idGenerator: IdGenerator,
     private val normalAds: NormalScreenAdCoordinator,
     private val localeApplier: LocaleApplier,
+    private val onboardingAds: OnboardingAdCoordinator? = null,
 ) {
     private val mutex = Mutex()
     private val mutableSnapshot = MutableStateFlow<LanguageFlowSnapshot?>(null)
@@ -53,6 +55,7 @@ public class LanguageFlowCoordinator(
     private val languagePreloadStarted = AtomicBoolean(false)
     private val selectNavigated = AtomicBoolean(false)
     private val dupNavigated = AtomicBoolean(false)
+    private val lastConfigSnapshot = AtomicReference<AdsConfigSnapshot?>(null)
 
     public val snapshot: StateFlow<LanguageFlowSnapshot?> = mutableSnapshot.asStateFlow()
     public val events: SharedFlow<LanguageFlowEvent> = mutableEvents.asSharedFlow()
@@ -64,6 +67,7 @@ public class LanguageFlowCoordinator(
         configSnapshot: AdsConfigSnapshot,
         existingSessionId: LanguageSessionId? = null,
     ): LanguageSessionId {
+        lastConfigSnapshot.set(configSnapshot)
         val sessionId = attach(configSnapshot, existingSessionId)
         if (loadingTimerStarted.compareAndSet(false, true)) {
             val now = clock.nowMillis()
@@ -108,6 +112,7 @@ public class LanguageFlowCoordinator(
         configSnapshot: AdsConfigSnapshot,
         existingSessionId: LanguageSessionId? = null,
     ): LanguageSessionId {
+        lastConfigSnapshot.set(configSnapshot)
         val sessionId = ensureSession(existingSessionId)
         ensureLanguagePreload(configSnapshot)
         refreshTimers()
@@ -119,8 +124,7 @@ public class LanguageFlowCoordinator(
      * Allocates a Language session so preload and UI share the same screen IDs.
      */
     public fun ensureLanguagePreload(configSnapshot: AdsConfigSnapshot): LanguageSessionId {
-        @Suppress("UNUSED_VARIABLE")
-        val ignored = configSnapshot
+        lastConfigSnapshot.set(configSnapshot)
         val sessionId = ensureSession(existingSessionId = null)
         val snap = checkNotNull(mutableSnapshot.value)
         if (!languagePreloadStarted.compareAndSet(false, true)) {
@@ -340,14 +344,19 @@ public class LanguageFlowCoordinator(
             publish { it.copy(onboardingPreloadStarted = true) }
             return
         }
-        normalAds.ensureLoadedAsync(
-            LanguageConfigKeys.ONBOARDING,
-            LanguageScreenInstances.onboardingPage1,
-        )
-        normalAds.ensureLoadedAsync(
-            LanguageConfigKeys.ONBOARDING,
-            LanguageScreenInstances.onboardingPage2,
-        )
+        val snapshot = lastConfigSnapshot.get()
+        if (onboardingAds != null && snapshot != null) {
+            onboardingAds.ensureEarlyPreload(snapshot)
+        } else {
+            normalAds.ensureLoadedAsync(
+                LanguageConfigKeys.ONBOARDING,
+                LanguageScreenInstances.onboardingPage1,
+            )
+            normalAds.ensureLoadedAsync(
+                LanguageConfigKeys.ONBOARDING,
+                LanguageScreenInstances.onboardingPage2,
+            )
+        }
         publish { it.copy(onboardingPreloadStarted = true) }
     }
 

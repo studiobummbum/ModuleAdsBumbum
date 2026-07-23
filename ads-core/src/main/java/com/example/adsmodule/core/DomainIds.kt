@@ -78,6 +78,13 @@ public value class LanguageSessionId(public val value: String) {
 }
 
 @JvmInline
+public value class OnboardingSessionId(public val value: String) {
+    init {
+        require(value.isNotBlank()) { "OnboardingSessionId must not be blank" }
+    }
+}
+
+@JvmInline
 public value class AdClickTokenId(public val value: String) {
     init {
         require(value.isNotBlank()) { "AdClickTokenId must not be blank" }

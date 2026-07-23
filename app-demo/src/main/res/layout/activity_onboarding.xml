@@ -1,27 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/onboarding_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fitsSystemWindows="true"
-    android:gravity="center"
-    android:orientation="vertical"
-    android:padding="24dp">
+    android:fitsSystemWindows="true">
 
-    <TextView
-        android:id="@+id/onboarding_placeholder_title"
+    <LinearLayout
+        android:id="@+id/onboarding_content"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:text="@string/onboarding_placeholder_title"
-        android:textAppearance="?attr/textAppearanceHeadlineSmall" />
+        android:layout_height="match_parent"
+        android:layout_gravity="center_horizontal"
+        android:maxWidth="840dp"
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <TextView
-        android:id="@+id/onboarding_placeholder_body"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:gravity="center"
-        android:text="@string/onboarding_placeholder_body"
-        android:textAppearance="?attr/textAppearanceBodyMedium" />
+        <TextView
+            android:id="@+id/onboarding_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/onboarding_title"
+            android:textAppearance="?attr/textAppearanceHeadlineSmall" />
 
-</LinearLayout>
+        <TextView
+            android:id="@+id/onboarding_page_indicator"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/onboarding_pager"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="12dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/onboarding_next"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:minHeight="48dp"
+            android:text="@string/onboarding_next" />
+    </LinearLayout>
+</FrameLayout>

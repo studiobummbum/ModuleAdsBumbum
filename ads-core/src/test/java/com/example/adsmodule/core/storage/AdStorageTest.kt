@@ -360,8 +360,8 @@ class AdStorageTest {
     @Test
     fun onboardingScreenInstances_areFourDistinctValues() {
         assertEquals(4, OnboardingScreenInstances.all.toSet().size)
-        assertEquals(ScreenInstanceId("onboarding-page-1"), OnboardingScreenInstances.page1)
-        assertEquals(ScreenInstanceId("onboarding-page-4"), OnboardingScreenInstances.page(4))
+        assertEquals(ScreenInstanceId("ONBOARD_NATIVE#1"), OnboardingScreenInstances.page1)
+        assertEquals(ScreenInstanceId("ONBOARD_NATIVE#4"), OnboardingScreenInstances.page(4))
         assertNotEquals(OnboardingScreenInstances.page2, OnboardingScreenInstances.page3)
     }
 

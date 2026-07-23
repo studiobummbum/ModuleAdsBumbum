@@ -18,6 +18,8 @@ import com.example.adsmodule.core.lifecycle.AdsLifecycleCoordinator
 import com.example.adsmodule.core.lifecycle.ForegroundSessionTracker
 import com.example.adsmodule.core.load.WeightedListLoader
 import com.example.adsmodule.core.normal.NormalScreenAdCoordinator
+import com.example.adsmodule.core.onboarding.OnboardingAdCoordinator
+import com.example.adsmodule.core.onboarding.OnboardingBoundaryCoordinator
 import com.example.adsmodule.core.refill.AdsConfigSnapshotProvider
 import com.example.adsmodule.core.refill.RefillDeficitStore
 import com.example.adsmodule.core.refill.WholeListRefillScheduler
@@ -39,7 +41,7 @@ import kotlinx.coroutines.launch
 
 class AdsDemoGraph(
     application: Application,
-    audience: AudienceType = AudienceType.PAID,
+    val audience: AudienceType = AudienceType.PAID,
 ) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val clock = Clock { System.currentTimeMillis() }
@@ -113,12 +115,25 @@ class AdsDemoGraph(
         audience = audience,
     )
 
+    val onboardingAds = OnboardingAdCoordinator(
+        scope = appScope,
+        normalAds = normalScreenAds,
+        snapshotProvider = snapshotProvider,
+        audience = audience,
+    )
+
+    val onboardingCoordinator = OnboardingBoundaryCoordinator(
+        clock = clock,
+        idGenerator = idGenerator,
+    )
+
     val languageCoordinator = LanguageFlowCoordinator(
         scope = appScope,
         clock = clock,
         idGenerator = idGenerator,
         normalAds = normalScreenAds,
         localeApplier = AppCompatLocaleApplier(),
+        onboardingAds = onboardingAds,
     )
 
     private val nativeFullController = NativeFullSplashController(

@@ -21,7 +21,7 @@ class CoreContractsTest {
 
     @Test
     fun onboardingPages_haveFourDistinctScreenInstances() {
-        val screenIds = (1..4).map { ScreenInstanceId("onboarding-page-$it") }
+        val screenIds = (1..4).map { ScreenInstanceId("ONBOARD_NATIVE#$it") }
 
         assertEquals(4, screenIds.toSet().size)
     }
@@ -52,7 +52,7 @@ class CoreContractsTest {
             sourceType = AdFormat.NATIVE,
             sourceAdunit = "native-unit",
             sourceWeight = 90,
-            screenInstanceId = ScreenInstanceId("onboarding-page-1"),
+            screenInstanceId = ScreenInstanceId("ONBOARD_NATIVE#1"),
             loadedAt = 123_456L,
             state = AdSlotState.READY,
             sdkHandle = handle,
@@ -64,7 +64,7 @@ class CoreContractsTest {
         assertEquals(AdFormat.NATIVE, storedAd.sourceType)
         assertEquals("native-unit", storedAd.sourceAdunit)
         assertEquals(90, storedAd.sourceWeight)
-        assertEquals(ScreenInstanceId("onboarding-page-1"), storedAd.screenInstanceId)
+        assertEquals(ScreenInstanceId("ONBOARD_NATIVE#1"), storedAd.screenInstanceId)
         assertEquals(123_456L, storedAd.loadedAt)
         assertEquals(AdSlotState.READY, storedAd.state)
         assertSame(handle, storedAd.sdkHandle)
