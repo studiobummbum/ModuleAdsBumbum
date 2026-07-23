@@ -6,19 +6,26 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class AdSdkContractsTest {
     @Test
     fun adapter_returnsConfiguredLoadResults() = runBlocking {
         val handle = TestHandle()
+        val metadata = AdRequestMetadata(
+            sourceConfigKey = "native_language_config",
+            sourceListIndex = 2,
+        )
         val request = AdLoadRequest(
             loadRequestId = "load-1",
             format = AdFormat.NATIVE,
             adUnit = "native-unit",
             timeoutMillis = 1_000L,
+            metadata = metadata,
         )
 
+        assertEquals(metadata, request.metadata)
         assertSame(
             handle,
             TestAdapter(AdLoadResult.Success(handle)).load(request).successHandle(),
@@ -31,6 +38,22 @@ class AdSdkContractsTest {
             AdLoadResult.Timeout,
             TestAdapter(AdLoadResult.Timeout).load(request),
         )
+    }
+
+    @Test
+    fun requestMetadata_rejectsInvalidSourceIdentity() {
+        assertThrows(IllegalArgumentException::class.java) {
+            AdRequestMetadata(
+                sourceConfigKey = " ",
+                sourceListIndex = 0,
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            AdRequestMetadata(
+                sourceConfigKey = "native_language_config",
+                sourceListIndex = -1,
+            )
+        }
     }
 
     @Test

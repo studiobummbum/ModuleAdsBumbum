@@ -27,11 +27,25 @@ public interface SdkLoadedAdHandle : AdDestroyable {
     public val adUnit: String
 }
 
+/**
+ * Identifies the original Remote Config item without coupling SDK adapters to ads-core.
+ */
+public data class AdRequestMetadata(
+    val sourceConfigKey: String,
+    val sourceListIndex: Int,
+) {
+    init {
+        require(sourceConfigKey.isNotBlank()) { "sourceConfigKey must not be blank" }
+        require(sourceListIndex >= 0) { "sourceListIndex must not be negative" }
+    }
+}
+
 public data class AdLoadRequest(
     val loadRequestId: String,
     val format: AdFormat,
     val adUnit: String,
     val timeoutMillis: Long?,
+    val metadata: AdRequestMetadata,
 ) {
     init {
         require(loadRequestId.isNotBlank()) { "loadRequestId must not be blank" }
