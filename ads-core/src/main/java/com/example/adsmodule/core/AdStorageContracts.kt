@@ -34,6 +34,8 @@ public data class StoredAd(
         require(sourceWeight >= 0) { "sourceWeight must not be negative" }
         require(loadedAt >= 0L) { "loadedAt must not be negative" }
     }
+
+    public fun withState(newState: AdSlotState): StoredAd = copy(state = newState)
 }
 
 public fun interface Clock {
