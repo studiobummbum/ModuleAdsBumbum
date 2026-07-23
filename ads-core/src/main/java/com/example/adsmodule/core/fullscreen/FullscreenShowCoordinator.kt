@@ -11,6 +11,7 @@ import com.example.adsmodule.sdk.AdFormat
 import com.example.adsmodule.sdk.AdSdkAdapterRegistry
 import com.example.adsmodule.sdk.AdShowEvent
 import com.example.adsmodule.sdk.AdShowRequest
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -25,9 +26,10 @@ import kotlinx.coroutines.flow.asSharedFlow
  * 3. markShowing
  * 4. collect SDK show events
  * 5. dismiss → consume; fail/abnormal end → failShowing
- * 6. release lock by matching [ShowRequestId]
+ * 6. release lock by matching [ShowRequestId], or complete covered owner when superseded
  *
  * Stale callbacks never mutate storage or unlock a newer owner.
+ * Per-show observers receive events even when the global [events] flow has no replay.
  */
 public class FullscreenShowCoordinator(
     private val storage: AdStorage,
@@ -40,8 +42,16 @@ public class FullscreenShowCoordinator(
         extraBufferCapacity = 64,
         replay = 0,
     )
+    private val observers =
+        ConcurrentHashMap<ShowRequestId, MutableSharedFlow<FullscreenShowEvent>>()
 
     public val events: SharedFlow<FullscreenShowEvent> = mutableEvents.asSharedFlow()
+
+    /**
+     * Returns a hot SharedFlow for one [ShowRequestId] with optional replay for late collectors.
+     */
+    public fun observe(showRequestId: ShowRequestId): SharedFlow<FullscreenShowEvent> =
+        observerFlow(showRequestId).asSharedFlow()
 
     public suspend fun show(
         reservationId: ReservationId,
@@ -59,6 +69,7 @@ public class FullscreenShowCoordinator(
         }
 
         val showRequestId = ShowRequestId(idGenerator.nextId())
+        observerFlow(showRequestId)
         val acquire = lock.acquire(
             FullscreenLockAcquireRequest(
                 showRequestId = showRequestId,
@@ -71,12 +82,14 @@ public class FullscreenShowCoordinator(
         )
         if (acquire is FullscreenLockAcquireResult.Rejected) {
             storage.release(reservationId)
+            observers.remove(showRequestId)
             return FullscreenShowResult.Rejected(acquire.reason)
         }
 
         if (!storage.markShowing(reservationId)) {
             lock.release(showRequestId)
             storage.release(reservationId)
+            observers.remove(showRequestId)
             return FullscreenShowResult.Rejected("Unable to markShowing")
         }
 
@@ -198,6 +211,7 @@ public class FullscreenShowCoordinator(
                     reason = "Show flow completed without dismiss/fail",
                 )
             }
+            observers.remove(showRequestId)
         }
 
         return result
@@ -224,7 +238,7 @@ public class FullscreenShowCoordinator(
         format: AdFormat,
     ) {
         val consumed = storage.consume(reservationId) || storage.consume(objectId)
-        lock.release(showRequestId)
+        finishOwnership(showRequestId)
         emit(
             FullscreenShowEvent.Dismissed(
                 showRequestId = showRequestId,
@@ -245,7 +259,7 @@ public class FullscreenShowCoordinator(
         reason: String,
     ) {
         val failed = storage.failShowing(objectId)
-        lock.release(showRequestId)
+        finishOwnership(showRequestId)
         emit(
             FullscreenShowEvent.Failed(
                 showRequestId = showRequestId,
@@ -259,8 +273,36 @@ public class FullscreenShowCoordinator(
         )
     }
 
+    private fun finishOwnership(showRequestId: ShowRequestId) {
+        val top = lock.currentOwner()
+        if (top?.showRequestId == showRequestId) {
+            lock.release(showRequestId)
+            return
+        }
+        val covered = lock.coveredOwners().any { it.showRequestId == showRequestId }
+        if (covered) {
+            lock.completeCovered(showRequestId)
+        } else {
+            lock.release(showRequestId)
+        }
+    }
+
     private fun emit(event: FullscreenShowEvent) {
         mutableEvents.tryEmit(event)
+        observers[event.showRequestId]?.tryEmit(event)
+    }
+
+    private fun observerFlow(showRequestId: ShowRequestId): MutableSharedFlow<FullscreenShowEvent> {
+        val existing = observers[showRequestId]
+        if (existing != null) {
+            return existing
+        }
+        val created = MutableSharedFlow<FullscreenShowEvent>(
+            replay = 8,
+            extraBufferCapacity = 16,
+        )
+        val raced = observers.putIfAbsent(showRequestId, created)
+        return raced ?: created
     }
 
     private fun validateKindAndFormat(

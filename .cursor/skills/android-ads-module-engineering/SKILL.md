@@ -175,18 +175,20 @@ Quy tắc:
 
 ### Splash skip
 
-- `splash_skip_ads` là cơ chế điều hướng, không phải load timeout và không phải SDK dismiss.
-- Chỉ bắt đầu timer khi quảng cáo Splash fullscreen đã **show thành công**:
-  - Interstitial Splash;
-  - App Open Splash;
-  - Native Full Splash.
-- Không bắt đầu từ lúc request load, load success hoặc READY.
-- Khi đủ `time_skip`, gọi `navigateNextOnce()` để mở Activity kế tiếp lên trên quảng cáo hiện tại.
-- Không giả lập bấm X và không bắt buộc chờ dismiss callback.
-- Nếu user đóng quảng cáo trước `time_skip`, hủy timer và đi flow bình thường.
-- Nếu show fail, không có ad, config tắt hoặc user không đủ điều kiện `isOrganic`, không tạo timer.
+- `splash_skip_ads` là cơ chế điều hướng stage, không phải load timeout và không phải SDK dismiss.
+- Chỉ bắt đầu timer khi Interstitial/App Open Splash đã **show thành công**.
+- Không bắt đầu từ lúc request load, load success, READY hoặc impression.
+- Khi đủ `time_skip`, hoặc khi SDK dismiss sớm, gọi stage gate first-wins để mở
+  `NativeFullSplashActivity` lên trên quảng cáo hiện tại.
+- Không giả lập bấm X SDK và không gọi SDK dismiss.
+- Item `type=native` trong `inter_splash_config_1` đã là Native Full; đi thẳng
+  `NativeFullSplashActivity` và dùng `native_splash_full_config_2`.
+- Native Full: X top-right sau `time_delay_X_button`; `auto_skip` bắt đầu sau khi X
+  xuất hiện; X hoặc auto_skip mở `LanguageLoadingActivity` đúng một lần.
+- Nếu show fail, không có ad, config tắt hoặc user không đủ điều kiện `isOrganic`,
+  không tạo timer; fallback Native Full nếu READY, không thì LanguageLoading.
 - Timer phải gắn với `showRequestId` hoặc splash stage.
-- Dismiss và timer có thể xảy ra đồng thời; navigation phải idempotent và chỉ chạy một lần.
+- Dismiss và timer có thể xảy ra đồng thời; stage/navigation gate phải idempotent.
 - Khi stage/màn đã kết thúc, mọi callback hoặc timer cũ phải bị bỏ qua.
 
 ### Chỉ sửa JSON invalid

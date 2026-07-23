@@ -64,6 +64,13 @@ public value class FullSessionId(public val value: String) {
 }
 
 @JvmInline
+public value class SplashSessionId(public val value: String) {
+    init {
+        require(value.isNotBlank()) { "SplashSessionId must not be blank" }
+    }
+}
+
+@JvmInline
 public value class AdClickTokenId(public val value: String) {
     init {
         require(value.isNotBlank()) { "AdClickTokenId must not be blank" }

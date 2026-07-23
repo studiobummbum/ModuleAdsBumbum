@@ -8,18 +8,18 @@ Giữ nguyên:
 {
   "enable": true,
   "isOrganic": false,
-  "time_skip": 10000
+  "time_skip": 8000
 }
 ```
 
-`time_skip` tính bằng millisecond.
+`time_skip` tính bằng millisecond. Bundled/workbook mặc định là `8000`.
 
 ## Không phải
 
 - thời gian chờ load;
 - timeout của màn;
 - auto dismiss SDK;
-- độ trễ nút X;
+- độ trễ nút X của Native Full;
 - thời gian tính từ READY.
 
 ## Điểm bắt đầu
@@ -27,8 +27,11 @@ Giữ nguyên:
 Timer chỉ bắt đầu từ callback show thành công của:
 
 - Interstitial Splash;
-- App Open Splash;
-- Native Full Splash.
+- App Open Splash.
+
+Item `type=native` trong `inter_splash_config_1` đã là Native Full nên **không**
+dùng `splash_skip_ads` để phủ Native Full lần hai; đi thẳng
+`NativeFullSplashActivity` với timing từ `native_splash_full_config_2`.
 
 Ví dụ callback nội bộ:
 
@@ -36,50 +39,65 @@ Ví dụ callback nội bộ:
 onFullscreenAdShown(showRequestId)
 ```
 
-## Khi hết thời gian
+## Khi hết thời gian hoặc dismiss sớm
 
 ```text
-navigateNextOnce(splashSessionId, showRequestId)
+advanceToNativeFullOnce(splashSessionId, showRequestId)
 ```
 
-Hành động là mở Activity kế tiếp lên trên quảng cáo hiện tại.
+Hành động là mở `NativeFullSplashActivity` lên trên quảng cáo hiện tại.
 
 Không:
 
 - gọi `dismiss()` lên SDK ad;
-- giả lập click nút X;
-- chờ callback dismiss mới điều hướng.
+- giả lập click nút X của SDK ad;
+- chờ callback dismiss mới chuyển stage (nếu timer thắng trước).
+
+Nếu SDK dismiss xảy ra trước `time_skip`, hủy timer và dùng cùng stage gate
+để mở Native Full (hoặc LanguageLoading nếu Native Full không READY).
+
+## Native Full Splash
+
+Sau khi stage tới Native Full:
+
+- X top-right, tôn trọng safe inset và touch target 48dp;
+- X chỉ enabled sau `time_delay_X_button`;
+- `auto_skip` bắt đầu sau khi X xuất hiện
+  (tổng thời gian = `time_delay_X_button + auto_skip`);
+- X hoặc auto_skip gọi `navigateToLanguageLoadingOnce()`.
 
 ## Hủy timer
 
 Hủy khi:
 
-- user đóng quảng cáo trước time_skip;
+- user/SDK đóng quảng cáo trước time_skip (chuyển stage qua dismiss path);
 - show fail;
-- flow đã điều hướng;
+- flow đã chuyển stage;
 - splash stage bị thay thế;
-- Activity bị destroy;
 - session không còn active.
+
+Recreation của Activity **không** hủy timer process-scoped; reattach cùng session.
 
 ## Race condition
 
 Timer và dismiss callback có thể chạy cùng lúc.
 
-Cần navigation gate:
+Cần stage gate:
 
 ```kotlin
-class NavigationGate {
-    private val navigated = AtomicBoolean(false)
+class StageGate {
+    private val advanced = AtomicBoolean(false)
 
-    fun navigateOnce(action: () -> Unit): Boolean {
-        if (!navigated.compareAndSet(false, true)) return false
+    fun advanceOnce(action: () -> Unit): Boolean {
+        if (!advanced.compareAndSet(false, true)) return false
         action()
         return true
     }
 }
 ```
 
-Cả timer và dismiss đều gọi cùng một gate.
+Cả timer và dismiss đều gọi cùng một gate tới Native Full.
+Gate riêng cho Native Full → LanguageLoading.
 
 ## State
 
@@ -92,7 +110,7 @@ CANCELLED
 
 READY không chuyển timer sang RUNNING.
 
-Chỉ show success mới chuyển:
+Chỉ Inter/App Open show success mới chuyển:
 
 ```text
 NOT_STARTED → RUNNING
@@ -103,10 +121,11 @@ NOT_STARTED → RUNNING
 - READY nhưng chưa show.
 - Interstitial show.
 - App Open show.
-- Native Full show.
-- User đóng sớm.
+- Native type đi thẳng Native Full.
+- User/SDK đóng sớm.
 - Show fail.
 - Config tắt.
 - Organic không đủ điều kiện.
-- Timer và dismiss cùng lúc.
-- Callback cũ sau Activity mới đã mở.
+- Timer và dismiss cùng lúc → Native Full đúng một lần.
+- Native Full X delay + auto_skip after X.
+- Callback cũ sau LanguageLoading đã mở.

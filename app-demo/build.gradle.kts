@@ -35,5 +35,6 @@ dependencies {
     implementation(project(":ads-sdk-fake"))
 
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.material)
 }

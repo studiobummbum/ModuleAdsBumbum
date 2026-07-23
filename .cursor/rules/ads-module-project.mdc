@@ -103,11 +103,16 @@ Full 1/2 hỗ trợ:
 
 ## Splash Skip
 
-- Chỉ bắt đầu timer sau fullscreen Splash show success.
-- Không bắt đầu từ load/READY.
-- Hết time_skip mở LanguageLoadingActivity lên trên ad.
-- Không giả lập X và không gọi SDK dismiss.
-- Timer và dismiss dùng chung navigation gate.
+- Chỉ bắt đầu timer sau Inter/App Open Splash show success.
+- Không bắt đầu từ load/READY/impression.
+- Hết `time_skip` hoặc SDK dismiss sớm (first-wins) mở
+  `NativeFullSplashActivity` lên trên ad hiện tại.
+- Không giả lập X SDK và không gọi SDK dismiss.
+- Timer và dismiss dùng chung stage gate tới Native Full.
+- Native Full X top-right sau `time_delay_X_button`;
+  `auto_skip` bắt đầu sau khi X xuất hiện.
+- X hoặc auto_skip của Native Full mới mở
+  `LanguageLoadingActivity` đúng một lần.
 
 ## Quy trình làm việc
 

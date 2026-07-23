@@ -4,4 +4,12 @@
     <string name="project_status_loading">Checking module status…</string>
     <string name="project_status_value">Project status\n%1$s\n%2$s</string>
     <string name="open_debug_dashboard">Open Debug Dashboard</string>
+    <string name="splash_logo">Module Ads</string>
+    <string name="splash_status_loading">Loading splash ads…</string>
+    <string name="splash_ads_disclaimer">This action maybe contain ads</string>
+    <string name="ad_label">Ad</string>
+    <string name="native_full_splash_title">Native Full Splash</string>
+    <string name="native_full_cta">Install</string>
+    <string name="native_full_close">Close</string>
+    <string name="language_loading_placeholder">Language Loading (Phase 10 placeholder)</string>
 </resources>

@@ -113,6 +113,52 @@ class GlobalFullscreenLockTest {
         assertFalse(names.any { it.contains("google.android.gms") })
     }
 
+    @Test
+    fun supersede_coversPrimaryAndRestoresOnRelease() {
+        val lock = GlobalFullscreenLock(clock = Clock { 0L })
+        lock.acquire(request("primary"))
+        val supersede = lock.supersede(
+            request = FullscreenLockAcquireRequest(
+                showRequestId = ShowRequestId("native-full"),
+                objectId = ObjectId("native-obj"),
+                sourceConfigKey = ConfigKey("native_splash_full_config_1"),
+                screenInstanceId = null,
+                format = AdFormat.NATIVE_FULLSCREEN,
+                kind = FullscreenAdKind.NATIVE_FULL_SPLASH,
+            ),
+            expectedCoveredShowRequestId = ShowRequestId("primary"),
+        )
+        assertTrue(supersede is FullscreenLockSupersedeResult.Superseded)
+        assertEquals(ShowRequestId("native-full"), lock.currentOwner()?.showRequestId)
+        assertEquals(1, lock.coveredOwners().size)
+
+        val released = lock.release(ShowRequestId("native-full"))
+        assertTrue(released is FullscreenLockReleaseResult.Released)
+        assertEquals(ShowRequestId("primary"), lock.currentOwner()?.showRequestId)
+        assertTrue(lock.coveredOwners().isEmpty())
+    }
+
+    @Test
+    fun completeCovered_removesCoveredWithoutUnlockingTop() {
+        val lock = GlobalFullscreenLock(clock = Clock { 0L })
+        lock.acquire(request("primary"))
+        lock.supersede(
+            request = FullscreenLockAcquireRequest(
+                showRequestId = ShowRequestId("native-full"),
+                objectId = ObjectId("native-obj"),
+                sourceConfigKey = ConfigKey("native_splash_full_config_1"),
+                screenInstanceId = null,
+                format = AdFormat.NATIVE_FULLSCREEN,
+                kind = FullscreenAdKind.NATIVE_FULL_SPLASH,
+            ),
+            expectedCoveredShowRequestId = ShowRequestId("primary"),
+        )
+        val completed = lock.completeCovered(ShowRequestId("primary"))
+        assertTrue(completed is FullscreenLockCoveredCompletionResult.Completed)
+        assertEquals(ShowRequestId("native-full"), lock.currentOwner()?.showRequestId)
+        assertTrue(lock.coveredOwners().isEmpty())
+    }
+
     private fun request(id: String): FullscreenLockAcquireRequest =
         FullscreenLockAcquireRequest(
             showRequestId = ShowRequestId(id),
