@@ -31,7 +31,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":ads-debug"))
+    debugImplementation(project(":ads-debug"))
     implementation(project(":ads-core"))
     implementation(project(":ads-sdk-fake"))
 

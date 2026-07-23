@@ -107,6 +107,23 @@ public class WholeListRefillScheduler(
         return job != null && job.isActive
     }
 
+    /**
+     * Read-only refill job summary for debug inspectors.
+     */
+    public fun inspectorSnapshot(): RefillSchedulerInspectorSnapshot {
+        val activeSlots = jobs.entries
+            .filter { (_, job) -> job.isActive }
+            .map { it.key }
+        val deficit = deficitStore.snapshot(
+            readyCountBySlot = activeSlots.associateWith { storage.readyCount(it) },
+        )
+        return RefillSchedulerInspectorSnapshot(
+            activeJobSlots = activeSlots,
+            deficit = deficit,
+            closed = closed.get(),
+        )
+    }
+
     private suspend fun runSlot(
         slot: StorageSlotKey,
         generation: Long,
@@ -177,3 +194,9 @@ public class WholeListRefillScheduler(
         }
     }
 }
+
+public data class RefillSchedulerInspectorSnapshot(
+    val activeJobSlots: List<StorageSlotKey>,
+    val deficit: RefillDeficitSnapshot,
+    val closed: Boolean,
+)

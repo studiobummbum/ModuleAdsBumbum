@@ -29,5 +29,7 @@ dependencies {
     implementation(project(":ads-core"))
 
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.fragment.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.material)
 }

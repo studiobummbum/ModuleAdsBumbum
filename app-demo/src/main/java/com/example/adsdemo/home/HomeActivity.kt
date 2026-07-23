@@ -1,7 +1,7 @@
 package com.example.adsdemo.home
 
-import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -15,7 +15,6 @@ import com.example.adsmodule.core.lifecycle.BackgroundReason
 import com.example.adsmodule.core.normal.NormalScreenBindResult
 import com.example.adsmodule.core.normal.NormalScreenLoadStatus
 import com.example.adsmodule.core.resume.AppOpenResumeResult
-import com.example.adsmodule.debug.DebugDashboardActivity
 import kotlinx.coroutines.launch
 
 class HomeActivity : AppCompatActivity() {
@@ -32,6 +31,10 @@ class HomeActivity : AppCompatActivity() {
 
         graph.homeAds.ensureBannerPreloaded()
         graph.appOpenResume.ensurePreloaded()
+        graph.debugApi.reportNavigation(
+            activityName = "HomeActivity",
+            screenLabel = "Home",
+        )
 
         binding.homeActionButton.setOnClickListener {
             binding.homeStatus.text = getString(R.string.home_status_triggering_inter)
@@ -64,9 +67,8 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
-        binding.openDebugDashboardButton.setOnClickListener {
-            startActivity(Intent(this, DebugDashboardActivity::class.java))
-        }
+        // Debug entry is wired only in the debug source set (DebugNavInstaller).
+        binding.openDebugDashboardButton.visibility = View.GONE
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {

@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <activity
+            android:name=".AdsDebugDashboardActivity"
+            android:exported="false" />
+        <activity
             android:name=".DebugDashboardActivity"
             android:exported="false" />
     </application>

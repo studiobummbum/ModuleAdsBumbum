@@ -17,14 +17,14 @@ and placeholder UI; it does not contain ads business logic.
 ## Dependency graph
 
 ```text
-app-demo ─┬─> ads-debug ─> ads-core ─> ads-sdk-core
-          ├─> ads-core
-          └─> ads-sdk-fake ──────────> ads-sdk-core
+app-demo (debug) ─┬─> ads-debug ─> ads-core ─> ads-sdk-core
+app-demo (all)   ─┼─> ads-core
+                 └─> ads-sdk-fake ──────────> ads-sdk-core
 ```
 
 `ads-core` must remain independent of concrete activities, Android views, and
 Google Mobile Ads. SDK-specific implementations depend on `ads-sdk-core`, not
-the reverse.
+the reverse. `:ads-debug` is attached with `debugImplementation` only.
 
 ## UI and build
 
@@ -36,5 +36,5 @@ the reverse.
 Build on Windows:
 
 ```powershell
-.\gradlew.bat :ads-core:testDebugUnitTest :app-demo:assembleDebug
+.\gradlew.bat :ads-core:testDebugUnitTest :app-demo:assembleDebug :app-demo:assembleRelease
 ```

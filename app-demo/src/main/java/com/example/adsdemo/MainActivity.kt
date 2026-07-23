@@ -1,11 +1,10 @@
 package com.example.adsdemo
 
-import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import com.example.adsdemo.databinding.ActivityMainBinding
 import com.example.adsmodule.core.AdsCoreStatus
-import com.example.adsmodule.debug.DebugDashboardActivity
 import com.example.adsmodule.fake.FakeAdsSdkModule
 
 class MainActivity : AppCompatActivity() {
@@ -21,8 +20,7 @@ class MainActivity : AppCompatActivity() {
             AdsCoreStatus.description,
             FakeAdsSdkModule.status,
         )
-        binding.openDebugDashboardButton.setOnClickListener {
-            startActivity(Intent(this, DebugDashboardActivity::class.java))
-        }
+        // Debug entry is wired only in the debug source set (DebugNavInstaller).
+        binding.openDebugDashboardButton.visibility = View.GONE
     }
 }

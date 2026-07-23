@@ -1,6 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="debug_dashboard_title">Debug Dashboard</string>
+    <string name="debug_dashboard_title">Ads Debug Control Center</string>
     <string name="debug_dashboard_placeholder">Controls and diagnostics will be added in a later phase.</string>
-    <string name="close_debug_dashboard">Close dashboard</string>
+    <string name="close_debug_dashboard">Close</string>
+    <string name="debug_menu">Menu</string>
+    <string name="debug_refresh">Refresh</string>
+    <string name="debug_apply">Apply</string>
+    <string name="debug_clear">Clear</string>
+    <string name="debug_simulate">Simulate</string>
+    <string name="debug_ad_label">Ad</string>
+    <string name="debug_cta">Install</string>
+    <string name="debug_media">Media</string>
+    <string name="debug_icon">Icon</string>
+    <string name="debug_overlay_label">Debug overlay</string>
+    <string name="debug_loading">Loading…</string>
+    <string name="debug_error">Error state</string>
+    <string name="debug_empty">Empty state</string>
+    <string name="debug_ready">Ready state</string>
+    <string name="debug_long_title">This is a very long native ad headline used to stress layout wrapping and truncation behavior across small medium and full templates</string>
+    <string name="debug_long_body">Body copy that is intentionally long so inspectors and gallery screens can validate multiline wrapping, ellipsize rules, and overlay placement when creative text exceeds the usual short demo strings used in happy-path fixtures.</string>
 </resources>

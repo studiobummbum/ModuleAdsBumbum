@@ -11,6 +11,8 @@ import com.example.adsmodule.core.config.BundledConfigDataSource
 import com.example.adsmodule.core.config.InMemoryConfigDataSource
 import com.example.adsmodule.core.config.InMemoryLastKnownGoodConfigStore
 import com.example.adsmodule.core.config.OriginalRemoteConfigRepository
+import com.example.adsmodule.core.debug.AdsDebugApi
+import com.example.adsmodule.core.debug.AdsDebugApiProvider
 import com.example.adsmodule.core.fullscreen.FullscreenShowCoordinator
 import com.example.adsmodule.core.fullscreen.GlobalFullscreenLock
 import com.example.adsmodule.core.fullscreen.HostedFullscreenCoordinator
@@ -34,6 +36,7 @@ import com.example.adsmodule.core.splash.SplashFlowCoordinator
 import com.example.adsmodule.core.splash.SplashStage
 import com.example.adsmodule.core.storage.AdStorage
 import com.example.adsmodule.core.turnback.AdClickTokenStore
+import com.example.adsmodule.core.turnback.AtomicBorrowService
 import com.example.adsmodule.fake.FakeAdsSdkController
 import com.example.adsmodule.fake.FakeAdsSdkModule
 import com.example.adsmodule.sdk.AdSdkAdapterRegistry
@@ -86,7 +89,7 @@ class AdsDemoGraph(
         clock = clock,
         idGenerator = idGenerator,
     )
-    private val tokenStore = AdClickTokenStore(clock = clock, idGenerator = idGenerator)
+    val tokenStore = AdClickTokenStore(clock = clock, idGenerator = idGenerator)
     val lifecycleCoordinator = AdsLifecycleCoordinator(
         sessionTracker = ForegroundSessionTracker(clock = clock),
         tokenStore = tokenStore,
@@ -106,7 +109,7 @@ class AdsDemoGraph(
         clock = clock,
     )
 
-    private val deficitStore = RefillDeficitStore()
+    val deficitStore = RefillDeficitStore()
     private val snapshotProvider = AdsConfigSnapshotProvider { configRepository.snapshots.value }
     val refillScheduler = WholeListRefillScheduler(
         scope = appScope,
@@ -115,6 +118,11 @@ class AdsDemoGraph(
         deficitStore = deficitStore,
         snapshotProvider = snapshotProvider,
         idGenerator = idGenerator,
+    )
+    val atomicBorrowService = AtomicBorrowService(
+        tokenStore = tokenStore,
+        storage = storage,
+        refillScheduler = refillScheduler,
     )
 
     val normalScreenAds = NormalScreenAdCoordinator(
@@ -218,8 +226,27 @@ class AdsDemoGraph(
         audience = audience,
     )
 
+    val debugApi = AdsDebugApi(
+        scope = appScope,
+        clock = clock,
+        storage = storage,
+        loader = loader,
+        deficitStore = deficitStore,
+        refillScheduler = refillScheduler,
+        fullscreenLock = fullscreenLock,
+        lifecycleSimulator = lifecycleSimulatorApi,
+        configRepository = configRepository,
+        currentConfigDataSource = currentConfig,
+        tokenStore = tokenStore,
+        borrowService = atomicBorrowService,
+        onboardingBoundary = onboardingCoordinator,
+        onboardingFull = onboardingFullCoordinator,
+    )
+
     fun warmUp() {
         processLifecycleBridge.start()
+        AdsDebugApiProvider.install(debugApi)
+        bridgeDebugEvents()
         appScope.launch {
             configRepository.refresh()
             val snapshot = configRepository.snapshots.value ?: return@launch
@@ -240,6 +267,34 @@ class AdsDemoGraph(
                     }
                     else -> Unit
                 }
+            }
+        }
+    }
+
+    private fun bridgeDebugEvents() {
+        appScope.launch {
+            splashCoordinator.events.collectLatest { event ->
+                debugApi.log("splash", event.toString())
+            }
+        }
+        appScope.launch {
+            languageCoordinator.events.collectLatest { event ->
+                debugApi.log("language", event.toString())
+            }
+        }
+        appScope.launch {
+            onboardingCoordinator.events.collectLatest { event ->
+                debugApi.log("onboarding", event.toString())
+            }
+        }
+        appScope.launch {
+            lifecycleCoordinator.events.collectLatest { event ->
+                debugApi.log("lifecycle", event.toString())
+            }
+        }
+        appScope.launch {
+            fullscreenShowCoordinator.events.collectLatest { event ->
+                debugApi.log("fullscreen", event.toString())
             }
         }
     }
