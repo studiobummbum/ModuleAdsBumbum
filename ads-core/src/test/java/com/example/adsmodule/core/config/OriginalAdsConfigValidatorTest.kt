@@ -63,6 +63,8 @@ class OriginalAdsConfigValidatorTest {
         val invalidCases = listOf(
             adDescriptor to
                 """{"enable":true,"list_ads":[{"enable_ad":true,"weight":1,"timeout":-1,"adunit":"unit"}]}""",
+            adDescriptor to
+                """{"enable":true,"timeout_total":-1,"list_ads":[{"enable_ad":true,"weight":1,"adunit":"unit"}]}""",
             ConfigKeyRegistry.requireDescriptor(ConfigKey("splash_skip_ads")) to
                 """{"enable":true,"isOrganic":false,"time_skip":-1}""",
             ConfigKeyRegistry.requireDescriptor(ConfigKey("native_splash_full_config_2")) to

@@ -41,7 +41,7 @@ public class OriginalAdsConfigValidator {
         optionalString(objectRoot, "type_layout", "$", issues)
         optionalString(objectRoot, "collapsible", "$", issues)
         optionalString(objectRoot, "refresh_time", "$", issues)
-        optionalInteger(objectRoot, "timeout_total", "$", nonNegative = false, issues)
+        optionalInteger(objectRoot, "timeout_total", "$", nonNegative = true, issues)
         optionalInteger(objectRoot, "interval", "$", nonNegative = false, issues)
 
         if ("weight" in objectRoot) {
