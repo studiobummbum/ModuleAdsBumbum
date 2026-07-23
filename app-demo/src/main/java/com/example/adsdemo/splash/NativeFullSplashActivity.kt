@@ -106,7 +106,8 @@ class NativeFullSplashActivity : AppCompatActivity() {
                         ) {
                             startActivity(
                                 Intent(this@NativeFullSplashActivity, LanguageLoadingActivity::class.java)
-                                    .putExtra(LanguageLoadingActivity.EXTRA_SESSION_ID, resolvedSessionId.value),
+                                    .putExtra(LanguageLoadingActivity.EXTRA_SESSION_ID, resolvedSessionId.value)
+                                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
                             )
                             graph.splashCoordinator.onLanguageLoadingOpened(resolvedSessionId)
                             finish()

@@ -1,6 +1,7 @@
 package com.example.adsdemo
 
 import android.app.Application
+import com.example.adsdemo.language.AppCompatLocaleApplier
 import com.example.adsmodule.core.AudienceType
 import com.example.adsmodule.core.Clock
 import com.example.adsmodule.core.IdGenerator
@@ -12,14 +13,17 @@ import com.example.adsmodule.core.config.OriginalRemoteConfigRepository
 import com.example.adsmodule.core.fullscreen.FullscreenShowCoordinator
 import com.example.adsmodule.core.fullscreen.GlobalFullscreenLock
 import com.example.adsmodule.core.fullscreen.HostedFullscreenCoordinator
+import com.example.adsmodule.core.language.LanguageFlowCoordinator
 import com.example.adsmodule.core.lifecycle.AdsLifecycleCoordinator
 import com.example.adsmodule.core.lifecycle.ForegroundSessionTracker
 import com.example.adsmodule.core.load.WeightedListLoader
+import com.example.adsmodule.core.normal.NormalScreenAdCoordinator
 import com.example.adsmodule.core.refill.AdsConfigSnapshotProvider
 import com.example.adsmodule.core.refill.RefillDeficitStore
 import com.example.adsmodule.core.refill.WholeListRefillScheduler
 import com.example.adsmodule.core.splash.NativeFullSplashController
 import com.example.adsmodule.core.splash.SplashFlowCoordinator
+import com.example.adsmodule.core.splash.SplashStage
 import com.example.adsmodule.core.storage.AdStorage
 import com.example.adsmodule.core.turnback.AdClickTokenStore
 import com.example.adsmodule.fake.FakeAdsSdkController
@@ -30,6 +34,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class AdsDemoGraph(
@@ -87,13 +92,33 @@ class AdsDemoGraph(
     }
 
     private val deficitStore = RefillDeficitStore()
+    private val snapshotProvider = AdsConfigSnapshotProvider { configRepository.snapshots.value }
     val refillScheduler = WholeListRefillScheduler(
         scope = appScope,
         loader = loader,
         storage = storage,
         deficitStore = deficitStore,
-        snapshotProvider = AdsConfigSnapshotProvider { configRepository.snapshots.value },
+        snapshotProvider = snapshotProvider,
         idGenerator = idGenerator,
+    )
+
+    val normalScreenAds = NormalScreenAdCoordinator(
+        scope = appScope,
+        clock = clock,
+        idGenerator = idGenerator,
+        loader = loader,
+        storage = storage,
+        refillScheduler = refillScheduler,
+        snapshotProvider = snapshotProvider,
+        audience = audience,
+    )
+
+    val languageCoordinator = LanguageFlowCoordinator(
+        scope = appScope,
+        clock = clock,
+        idGenerator = idGenerator,
+        normalAds = normalScreenAds,
+        localeApplier = AppCompatLocaleApplier(),
     )
 
     private val nativeFullController = NativeFullSplashController(
@@ -121,6 +146,21 @@ class AdsDemoGraph(
             configRepository.refresh()
             val snapshot = configRepository.snapshots.value ?: return@launch
             splashCoordinator.startOrAttach(snapshot)
+        }
+        appScope.launch {
+            splashCoordinator.snapshot.collectLatest { snap ->
+                if (snap == null) return@collectLatest
+                when (snap.stage) {
+                    SplashStage.PRIMARY_SHOWING,
+                    SplashStage.NATIVE_FULL,
+                    SplashStage.LANGUAGE_LOADING,
+                    -> {
+                        val config = configRepository.snapshots.value ?: return@collectLatest
+                        languageCoordinator.ensureLanguagePreload(config)
+                    }
+                    else -> Unit
+                }
+            }
         }
     }
 

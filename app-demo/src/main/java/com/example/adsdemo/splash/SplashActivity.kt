@@ -15,7 +15,6 @@ import com.example.adsmodule.core.splash.SplashFlowSnapshot
 import com.example.adsmodule.core.splash.SplashLoadStatus
 import com.example.adsmodule.core.splash.SplashNavigationEffect
 import com.example.adsmodule.core.splash.SplashPlacement
-import com.example.adsmodule.core.splash.SplashStage
 import kotlinx.coroutines.launch
 
 class SplashActivity : AppCompatActivity() {
@@ -129,12 +128,11 @@ class SplashActivity : AppCompatActivity() {
                 ) {
                     startActivity(
                         Intent(this, LanguageLoadingActivity::class.java)
-                            .putExtra(LanguageLoadingActivity.EXTRA_SESSION_ID, snap.sessionId.value),
+                            .putExtra(LanguageLoadingActivity.EXTRA_SESSION_ID, snap.sessionId.value)
+                            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
                     )
                     graph.splashCoordinator.onLanguageLoadingOpened(snap.sessionId)
-                    if (snap.stage != SplashStage.PRIMARY_SHOWING) {
-                        finish()
-                    }
+                    finish()
                 }
             }
             null -> Unit

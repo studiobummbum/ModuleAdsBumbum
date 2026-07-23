@@ -22,6 +22,18 @@
             android:name=".language.LanguageLoadingActivity"
             android:exported="false" />
         <activity
+            android:name=".language.LanguageActivity"
+            android:exported="false" />
+        <activity
+            android:name=".language.LanguageDupActivity"
+            android:exported="false" />
+        <activity
+            android:name=".language.ApplyLanguageActivity"
+            android:exported="false" />
+        <activity
+            android:name=".onboarding.OnboardingActivity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:exported="false" />
     </application>

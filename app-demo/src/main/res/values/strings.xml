@@ -11,5 +11,14 @@
     <string name="native_full_splash_title">Native Full Splash</string>
     <string name="native_full_cta">Install</string>
     <string name="native_full_close">Close</string>
-    <string name="language_loading_placeholder">Language Loading (Phase 10 placeholder)</string>
+    <string name="language_loading_status">Preparing language…</string>
+    <string name="language_select_title">Choose your language</string>
+    <string name="language_dup_title">Confirm language</string>
+    <string name="language_dup_selected">Selected: %1$s</string>
+    <string name="language_next">Next</string>
+    <string name="language_selected_mark">✓</string>
+    <string name="apply_language_status">Applying language…</string>
+    <string name="apply_language_selected">%1$s</string>
+    <string name="onboarding_placeholder_title">Onboarding Pager 1</string>
+    <string name="onboarding_placeholder_body">Phase 10 destination placeholder. Phase 11 will add ViewPager2.</string>
 </resources>
