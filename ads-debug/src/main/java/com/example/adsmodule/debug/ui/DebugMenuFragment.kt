@@ -67,7 +67,14 @@ open class DebugMenuFragment : Fragment() {
                         appendLine("refillInFlight=${snap.refillInFlightCount}")
                         appendLine("activeLoads=${snap.activeLoadCycleCount}")
                         appendLine(
-                            "latest=${snap.latestEvent?.let { "${it.category}: ${it.message}" }}",
+                            "latest=${snap.latestEvent?.let { event ->
+                                val markers = if (event.markers.isEmpty()) {
+                                    ""
+                                } else {
+                                    " markers=${event.markers}"
+                                }
+                                "${event.category}: ${event.message}$markers"
+                            }}",
                         )
                     }
                     binding.dashboardSnapshotText.isVisible = true

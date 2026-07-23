@@ -5,6 +5,8 @@ import android.widget.LinearLayout
 import androidx.lifecycle.lifecycleScope
 import com.example.adsmodule.core.ConfigKey
 import com.example.adsmodule.core.SessionId
+import com.example.adsmodule.core.analytics.AdsAnalyticsEvent
+import com.example.adsmodule.core.analytics.AdsEventCategory
 import com.example.adsmodule.core.onboarding.full.FullExitSource
 import com.example.adsmodule.debug.R
 import kotlinx.coroutines.launch
@@ -388,28 +390,127 @@ class FullActivityGestureSimulatorFragment : BaseDebugInspectorFragment() {
 }
 
 class EventLogFragment : BaseDebugInspectorFragment() {
-    override fun setupActions(container: LinearLayout) {
-        addAction(container, getString(R.string.debug_clear)) {
-            api.eventLog.clear()
-            render()
-        }
-    }
+    private var searchInput: EditText? = null
+    private var categoryFilter: AdsEventCategory? = null
+    private var markersOnly: Boolean = false
+    private var lastRendered: List<AdsAnalyticsEvent> = emptyList()
 
-    override fun observe() {
-        collectWhileStarted(api.eventLog.snapshot) { events ->
-            setText(
-                buildString {
-                    if (events.isEmpty()) appendLine("(empty)")
-                    events.asReversed().forEach { event ->
-                        appendLine("#${event.id} [${event.category}] ${event.message}")
-                        if (event.details.isNotEmpty()) {
-                            appendLine("  ${event.details}")
-                        }
+    override fun setupActions(container: LinearLayout) {
+        searchInput = EditText(requireContext()).apply {
+            hint = getString(R.string.debug_event_search)
+            minHeight = (48 * resources.displayMetrics.density).toInt()
+            addTextChangedListener(
+                object : android.text.TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                    override fun afterTextChanged(s: android.text.Editable?) {
+                        renderFiltered()
                     }
                 },
             )
         }
+        container.addView(searchInput)
+
+        addAction(container, getString(R.string.debug_event_filter_all)) {
+            categoryFilter = null
+            markersOnly = false
+            renderFiltered()
+        }
+        AdsEventCategory.entries.forEach { category ->
+            addAction(container, getString(R.string.debug_event_filter_category, category.wireName)) {
+                categoryFilter = category
+                markersOnly = false
+                renderFiltered()
+            }
+        }
+        addAction(container, getString(R.string.debug_event_filter_markers)) {
+            markersOnly = true
+            renderFiltered()
+        }
+        addAction(container, getString(R.string.debug_event_export)) {
+            val json = api.exportEventLogJson(
+                category = categoryFilter,
+                query = searchInput?.text?.toString(),
+                markersOnly = markersOnly,
+            )
+            val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                as android.content.ClipboardManager
+            clipboard.setPrimaryClip(
+                android.content.ClipData.newPlainText("ads-event-log", json),
+            )
+            android.widget.Toast.makeText(
+                requireContext(),
+                getString(R.string.debug_event_exported, json.length),
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+            setText(
+                buildString {
+                    appendLine(getString(R.string.debug_event_export_preview))
+                    appendLine(json.take(4_000))
+                    if (json.length > 4_000) appendLine("…")
+                    appendLine()
+                    append(formatEvents(lastRendered))
+                },
+            )
+        }
+        addAction(container, getString(R.string.debug_clear)) {
+            api.clearEventLog()
+            renderFiltered()
+        }
     }
 
-    override fun render() = Unit
+    override fun observe() {
+        collectWhileStarted(api.analytics.snapshot) {
+            renderFiltered()
+        }
+    }
+
+    override fun render() = renderFiltered()
+
+    private fun renderFiltered() {
+        lastRendered = api.filteredEvents(
+            category = categoryFilter,
+            query = searchInput?.text?.toString(),
+            markersOnly = markersOnly,
+        )
+        setText(formatEvents(lastRendered))
+    }
+
+    private fun formatEvents(events: List<AdsAnalyticsEvent>): String =
+        buildString {
+            val filterLabel = categoryFilter?.wireName ?: "all"
+            appendLine(
+                "filter=$filterLabel markersOnly=$markersOnly " +
+                    "query=${searchInput?.text?.toString().orEmpty()} count=${events.size}",
+            )
+            if (events.isEmpty()) {
+                appendLine("(empty)")
+                return@buildString
+            }
+            events.asReversed().forEach { event ->
+                val markerLabel = if (event.markers.isEmpty()) {
+                    ""
+                } else {
+                    " markers=${event.markers.joinToString(",") { it.name }}"
+                }
+                appendLine(
+                    "#${event.id} [${event.category.wireName}] ${event.name}$markerLabel",
+                )
+                appendLine(
+                    "  session=${event.sessionId} ts=${event.timestamp} " +
+                        "snapshot=${event.snapshotVersion}",
+                )
+                val extras = buildList {
+                    event.configKey?.let { add("configKey=$it") }
+                    event.objectId?.let { add("objectId=$it") }
+                    event.result?.let { add("result=$it") }
+                    event.error?.let { add("error=$it") }
+                    event.exitSource?.let { add("exitSource=$it") }
+                    if (event.details.isNotEmpty()) add("details=${event.details}")
+                }
+                if (extras.isNotEmpty()) {
+                    appendLine("  ${extras.joinToString(" ")}")
+                }
+            }
+        }
 }

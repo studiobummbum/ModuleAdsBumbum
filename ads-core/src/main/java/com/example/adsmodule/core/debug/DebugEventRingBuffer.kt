@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Bounded in-memory event log for Phase 14 debug UI.
- * Phase 15 AdsAnalytics will supersede this for production telemetry.
+ * Bounded in-memory event log retained for unit tests and legacy callers.
+ * Production/debug telemetry should use [com.example.adsmodule.core.analytics.AdsAnalytics].
  */
 public class DebugEventRingBuffer(
     private val capacity: Int = DEFAULT_CAPACITY,
@@ -73,11 +73,3 @@ public class DebugEventRingBuffer(
         public const val DEFAULT_CAPACITY: Int = 200
     }
 }
-
-public data class DebugEvent(
-    val id: Long,
-    val category: String,
-    val message: String,
-    val timestampMillis: Long,
-    val details: Map<String, String> = emptyMap(),
-)

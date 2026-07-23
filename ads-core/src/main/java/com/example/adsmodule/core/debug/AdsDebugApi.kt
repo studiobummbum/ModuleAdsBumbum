@@ -3,7 +3,17 @@ package com.example.adsmodule.core.debug
 import com.example.adsmodule.core.AdClickTokenId
 import com.example.adsmodule.core.Clock
 import com.example.adsmodule.core.ConfigKey
+import com.example.adsmodule.core.FullSessionId
+import com.example.adsmodule.core.LoadCycleId
+import com.example.adsmodule.core.OnboardingSessionId
 import com.example.adsmodule.core.SessionId
+import com.example.adsmodule.core.analytics.AdsAnalytics
+import com.example.adsmodule.core.analytics.AdsAnalyticsEvent
+import com.example.adsmodule.core.analytics.AdsEventCategory
+import com.example.adsmodule.core.analytics.AdsEventMarker
+import com.example.adsmodule.core.analytics.CompositeAdsAnalytics
+import com.example.adsmodule.core.analytics.InMemoryAdsAnalytics
+import com.example.adsmodule.core.analytics.track
 import com.example.adsmodule.core.config.AdsConfigSnapshot
 import com.example.adsmodule.core.config.ConfigRefreshResult
 import com.example.adsmodule.core.config.InMemoryConfigDataSource
@@ -30,9 +40,6 @@ import com.example.adsmodule.core.storage.StorageInspectorSnapshot
 import com.example.adsmodule.core.storage.StoredAdView
 import com.example.adsmodule.core.turnback.AdClickTokenStore
 import com.example.adsmodule.core.turnback.AtomicBorrowService
-import com.example.adsmodule.core.FullSessionId
-import com.example.adsmodule.core.OnboardingSessionId
-import com.example.adsmodule.core.LoadCycleId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,7 +69,7 @@ public class AdsDebugApi(
     private val onboardingBoundary: OnboardingBoundaryCoordinator? = null,
     private val onboardingFull: OnboardingFullCoordinator? = null,
     public val navigation: NavigationDebugTracker = NavigationDebugTracker(),
-    public val eventLog: DebugEventRingBuffer = DebugEventRingBuffer(),
+    public val analytics: AdsAnalytics = CompositeAdsAnalytics(InMemoryAdsAnalytics()),
 ) {
     public val configActions: ConfigDebugActions =
         ConfigDebugActions(currentConfigDataSource, configRepository)
@@ -96,7 +103,7 @@ public class AdsDebugApi(
                 lifecycleSimulator.lifecycleSnapshot.collectLatest { refreshDashboard() }
             }
             launch {
-                eventLog.snapshot.collectLatest { refreshDashboard() }
+                analytics.snapshot.collectLatest { refreshDashboard() }
             }
             launch {
                 onboardingBoundary?.snapshot?.collectLatest { refreshDashboard() }
@@ -223,15 +230,43 @@ public class AdsDebugApi(
         category: String,
         message: String,
         details: Map<String, String> = emptyMap(),
-    ): DebugEvent =
-        eventLog.append(
-            category = category,
-            message = message,
-            timestampMillis = clock.nowMillis(),
-            details = details,
+        markers: Set<AdsEventMarker> = emptySet(),
+    ): DebugEvent? {
+        val life = lifecycleSimulator.lifecycleSnapshot.value
+        val config = configRepository.snapshots.value
+        val stored = analytics.track(
+            category = resolveDebugCategory(category),
+            name = message,
+            timestamp = clock.nowMillis(),
+            sessionId = life.sessionId?.value ?: "unknown-session",
+            snapshotVersion = config?.version,
+            markers = markers,
+            details = details + ("debugCategory" to category),
         )
+        return stored?.toDebugEvent()
+    }
 
-    public val events: SharedFlow<DebugEvent> = eventLog.events
+    public fun trackAnalytics(event: AdsAnalyticsEvent): AdsAnalyticsEvent? = analytics.track(event)
+
+    public fun clearEventLog() {
+        analytics.clear()
+        refreshDashboard()
+    }
+
+    public fun exportEventLogJson(
+        category: AdsEventCategory? = null,
+        query: String? = null,
+        markersOnly: Boolean = false,
+    ): String = analytics.exportJson(category = category, query = query, markersOnly = markersOnly)
+
+    public fun filteredEvents(
+        category: AdsEventCategory? = null,
+        query: String? = null,
+        markersOnly: Boolean = false,
+    ): List<AdsAnalyticsEvent> =
+        analytics.filter(category = category, query = query, markersOnly = markersOnly)
+
+    public val events: SharedFlow<AdsAnalyticsEvent> = analytics.events
 
     private fun buildDashboardSnapshot(): AdsDebugDashboardSnapshot {
         val config = configRepository.snapshots.value
@@ -252,7 +287,7 @@ public class AdsDebugApi(
             },
             refillInFlightCount = deficit.slots.sumOf { it.inFlightCount },
             activeLoadCycleCount = loader.debugStates.value.values.count { it.isActive },
-            latestEvent = eventLog.latest(),
+            latestEvent = analytics.latest()?.toDebugEvent(),
             capturedAtMillis = clock.nowMillis(),
         )
     }

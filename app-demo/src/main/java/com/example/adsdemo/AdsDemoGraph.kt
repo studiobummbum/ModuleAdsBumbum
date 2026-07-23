@@ -11,6 +11,9 @@ import com.example.adsmodule.core.config.BundledConfigDataSource
 import com.example.adsmodule.core.config.InMemoryConfigDataSource
 import com.example.adsmodule.core.config.InMemoryLastKnownGoodConfigStore
 import com.example.adsmodule.core.config.OriginalRemoteConfigRepository
+import com.example.adsmodule.core.analytics.CompositeAdsAnalytics
+import com.example.adsmodule.core.analytics.InMemoryAdsAnalytics
+import com.example.adsmodule.core.analytics.NoOpAdsAnalyticsRemoteAdapter
 import com.example.adsmodule.core.debug.AdsDebugApi
 import com.example.adsmodule.core.debug.AdsDebugApiProvider
 import com.example.adsmodule.core.fullscreen.FullscreenShowCoordinator
@@ -226,6 +229,12 @@ class AdsDemoGraph(
         audience = audience,
     )
 
+    val analyticsStore = InMemoryAdsAnalytics()
+    val analytics = CompositeAdsAnalytics(
+        local = analyticsStore,
+        remote = NoOpAdsAnalyticsRemoteAdapter,
+    )
+
     val debugApi = AdsDebugApi(
         scope = appScope,
         clock = clock,
@@ -241,6 +250,7 @@ class AdsDemoGraph(
         borrowService = atomicBorrowService,
         onboardingBoundary = onboardingCoordinator,
         onboardingFull = onboardingFullCoordinator,
+        analytics = analytics,
     )
 
     fun warmUp() {

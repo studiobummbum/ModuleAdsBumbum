@@ -7,6 +7,13 @@
     <string name="debug_refresh">Refresh</string>
     <string name="debug_apply">Apply</string>
     <string name="debug_clear">Clear</string>
+    <string name="debug_event_search">Search events</string>
+    <string name="debug_event_filter_all">Filter: all</string>
+    <string name="debug_event_filter_category">Filter: %1$s</string>
+    <string name="debug_event_filter_markers">Filter: markers only</string>
+    <string name="debug_event_export">Export JSON</string>
+    <string name="debug_event_exported">Copied JSON (%1$d chars)</string>
+    <string name="debug_event_export_preview">Exported JSON (clipboard):</string>
     <string name="debug_simulate">Simulate</string>
     <string name="debug_ad_label">Ad</string>
     <string name="debug_cta">Install</string>
