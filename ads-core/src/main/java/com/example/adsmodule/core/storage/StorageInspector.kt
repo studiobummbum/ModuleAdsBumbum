@@ -9,7 +9,7 @@ import com.example.adsmodule.core.state.StateHistoryEntry
  */
 public data class StorageInspectorSnapshot(
     val objects: List<StoredAdView>,
-    val readySlots: Map<StorageSlotKey, ObjectId>,
+    val readySlots: Map<StorageSlotKey, List<ObjectId>>,
     val reservations: List<Reservation>,
     val slotStates: Map<String, AdSlotState>,
     val history: List<StateHistoryEntry>,

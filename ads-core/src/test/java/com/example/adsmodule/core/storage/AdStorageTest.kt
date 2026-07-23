@@ -146,6 +146,55 @@ class AdStorageTest {
     }
 
     @Test
+    fun multiReady_sameSlot_allowsMultipleAndReservesFifo() {
+        val env = StorageEnv()
+        val config = ConfigKey("native_language_config_1")
+        val screen = ScreenInstanceId("screen-1")
+        assertTrue(
+            env.storage.putReady(
+                env.nativeAd(objectId = "first", configKey = config, screen = screen, weight = 10),
+            ) is PutResult.Accepted,
+        )
+        assertTrue(
+            env.storage.putReady(
+                env.nativeAd(objectId = "second", configKey = config, screen = screen, weight = 90),
+            ) is PutResult.Accepted,
+        )
+        assertEquals(2, env.storage.readyCount(config, screen))
+        val snapshot = env.storage.inspector()
+        assertEquals(2, snapshot.readySlots.getValue(StorageSlotKey(config, screen)).size)
+
+        val reserved = env.storage.reserveNormal(config, screen) as ReserveResult.Accepted
+        assertEquals(ObjectId("first"), reserved.storedAd.objectId)
+        assertEquals(1, env.storage.readyCount(config, screen))
+        assertEquals(ObjectId("second"), env.storage.peekReady(config, screen)?.objectId)
+    }
+
+    @Test
+    fun atomicBorrowTurnback_selectsHighestWeightAcrossSlots() {
+        val env = StorageEnv()
+        val configA = ConfigKey("native_language_config_1")
+        val configB = ConfigKey("native_language_dup_config_1")
+        env.storage.putReady(
+            env.nativeAd(objectId = "a", configKey = configA, screen = ScreenInstanceId("a"), weight = 40),
+        )
+        env.storage.putReady(
+            env.nativeAd(objectId = "b", configKey = configB, screen = ScreenInstanceId("b"), weight = 80),
+        )
+        var enqueuedSlot: StorageSlotKey? = null
+        val accepted = env.storage.atomicBorrowTurnback { result ->
+            enqueuedSlot = StorageSlotKey(
+                result.storedAd.sourceConfigKey,
+                result.storedAd.screenInstanceId,
+            )
+        } as ReserveResult.Accepted
+        assertEquals(ObjectId("b"), accepted.storedAd.objectId)
+        assertEquals(StorageSlotKey(configB, ScreenInstanceId("b")), enqueuedSlot)
+        assertEquals(1, env.storage.readyCount(configA, ScreenInstanceId("a")))
+        assertEquals(0, env.storage.readyCount(configB, ScreenInstanceId("b")))
+    }
+
+    @Test
     fun expireAndDestroy_destroyHandleOutsideInventoryLock() {
         val env = StorageEnv(ttlMillis = 100L)
         val handle = TrackingHandle(AdFormat.INTERSTITIAL, "inter-1")

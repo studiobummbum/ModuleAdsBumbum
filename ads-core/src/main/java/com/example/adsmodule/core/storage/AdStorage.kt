@@ -12,6 +12,7 @@ import com.example.adsmodule.core.state.AdsStateEvent
 import com.example.adsmodule.core.state.AdsStateStore
 import com.example.adsmodule.core.state.ApplyTransitionResult
 import com.example.adsmodule.core.state.StateHistory
+import com.example.adsmodule.core.turnback.TurnbackSelector
 import com.example.adsmodule.sdk.AdFormat
 import com.example.adsmodule.sdk.SdkLoadedAdHandle
 import java.util.IdentityHashMap
@@ -23,7 +24,9 @@ import java.util.IdentityHashMap
  * - state updates are atomic under [lock]
  * - SDK [SdkLoadedAdHandle.destroy] is never called while holding [lock]
  * - normal-screen reserve matches exact configKey + screenInstanceId
+ * - a slot may hold multiple READY objects (targetReadyCount > 1)
  * - Native / Native Fullscreen handles are never reused after insert
+ * - turnback borrow selects globally among eligible READY Native/Banner objects
  */
 public class AdStorage(
     private val clock: Clock,
@@ -41,7 +44,7 @@ public class AdStorage(
     )
 
     private val byObjectId = LinkedHashMap<ObjectId, StoredAd>()
-    private val readyBySlot = LinkedHashMap<StorageSlotKey, ObjectId>()
+    private val readyBySlot = LinkedHashMap<StorageSlotKey, LinkedHashSet<ObjectId>>()
     private val reservations = LinkedHashMap<ReservationId, Reservation>()
     private val reservationByObject = LinkedHashMap<ObjectId, ReservationId>()
     private val nativeHandlesSeen: MutableMap<SdkLoadedAdHandle, ObjectId> =
@@ -84,14 +87,8 @@ public class AdStorage(
                 )
             }
             val slot = StorageSlotKey(storedAd.sourceConfigKey, storedAd.screenInstanceId)
-            if (readyBySlot.containsKey(slot)) {
-                return PutResult.Rejected(
-                    "Slot already has READY object for ${slot.configKey.value}/" +
-                        "${slot.screenInstanceId?.value}",
-                )
-            }
             byObjectId[storedAd.objectId] = storedAd
-            readyBySlot[slot] = storedAd.objectId
+            addReadyLocked(slot, storedAd.objectId)
             if (isNative) {
                 nativeHandlesSeen[storedAd.sdkHandle] = storedAd.objectId
             }
@@ -103,7 +100,7 @@ public class AdStorage(
             )
             if (applied is ApplyTransitionResult.Rejected) {
                 byObjectId.remove(storedAd.objectId)
-                readyBySlot.remove(slot)
+                removeReadyLocked(slot, storedAd.objectId)
                 if (isNative) {
                     nativeHandlesSeen.remove(storedAd.sdkHandle)
                 }
@@ -120,50 +117,62 @@ public class AdStorage(
         var removedInfo: RemovedObjectInfo? = null
         val result = synchronized(lock) {
             val slot = StorageSlotKey(configKey, screenInstanceId)
-            val objectId = readyBySlot[slot]
+            val objectId = readyBySlot[slot]?.firstOrNull()
                 ?: return@synchronized ReserveResult.Rejected(
                     "No READY object for ${configKey.value}/${screenInstanceId?.value}",
                 )
-            val current = byObjectId[objectId]
-                ?: return@synchronized ReserveResult.Rejected("Missing StoredAd ${objectId.value}")
-            if (current.state != AdSlotState.READY) {
-                return@synchronized ReserveResult.Rejected(
-                    "Object ${objectId.value} state is ${current.state}, expected READY",
+            reserveObjectLocked(
+                objectId = objectId,
+                expectedConfigKey = configKey,
+                expectedScreenInstanceId = screenInstanceId,
+            ).also { reserveResult ->
+                if (reserveResult is ReserveResult.Accepted) {
+                    removedInfo = RemovedObjectInfo(
+                        objectId = reserveResult.storedAd.objectId,
+                        sourceConfigKey = reserveResult.storedAd.sourceConfigKey,
+                        screenInstanceId = reserveResult.storedAd.screenInstanceId,
+                        sourceWeight = reserveResult.storedAd.sourceWeight,
+                        sourceType = reserveResult.storedAd.sourceType,
+                        reason = RemovalReason.RESERVED,
+                    )
+                }
+            }
+        }
+        removedInfo?.let { onObjectRemoved?.invoke(it) }
+        return result
+    }
+
+    /**
+     * Atomic turnback borrow: select → READY→RESERVED → pop → reservation →
+     * [onReservedUnderLock] → unlock.
+     *
+     * [onReservedUnderLock] must only update bookkeeping / enqueue work. It must not
+     * call SDK APIs or suspend.
+     */
+    public fun atomicBorrowTurnback(
+        onReservedUnderLock: (ReserveResult.Accepted) -> Unit,
+    ): ReserveResult {
+        var removedInfo: RemovedObjectInfo? = null
+        val result = synchronized(lock) {
+            val selected = TurnbackSelector.select(listReadyLocked())
+                ?: return@synchronized ReserveResult.Rejected("No eligible READY Native/Banner object")
+            val accepted = reserveObjectLocked(
+                objectId = selected.objectId,
+                expectedConfigKey = selected.sourceConfigKey,
+                expectedScreenInstanceId = selected.screenInstanceId,
+            )
+            if (accepted is ReserveResult.Accepted) {
+                onReservedUnderLock(accepted)
+                removedInfo = RemovedObjectInfo(
+                    objectId = accepted.storedAd.objectId,
+                    sourceConfigKey = accepted.storedAd.sourceConfigKey,
+                    screenInstanceId = accepted.storedAd.screenInstanceId,
+                    sourceWeight = accepted.storedAd.sourceWeight,
+                    sourceType = accepted.storedAd.sourceType,
+                    reason = RemovalReason.RESERVED,
                 )
             }
-            if (current.sourceConfigKey != configKey || current.screenInstanceId != screenInstanceId) {
-                return@synchronized ReserveResult.Rejected("Slot metadata mismatch")
-            }
-            val applied = stateStore.applyIfAlreadyLocked(
-                subjectId = objectId.value,
-                expected = AdSlotState.READY,
-                event = AdsStateEvent.Reserve,
-                objectId = objectId,
-            )
-            if (applied is ApplyTransitionResult.Rejected) {
-                return@synchronized ReserveResult.Rejected(applied.reason)
-            }
-            val reserved = current.withState(AdSlotState.RESERVED)
-            byObjectId[objectId] = reserved
-            readyBySlot.remove(slot)
-            val reservation = Reservation(
-                reservationId = ReservationId(idGenerator.nextId()),
-                objectId = objectId,
-                sourceConfigKey = reserved.sourceConfigKey,
-                screenInstanceId = reserved.screenInstanceId,
-                reservedAt = clock.nowMillis(),
-            )
-            reservations[reservation.reservationId] = reservation
-            reservationByObject[objectId] = reservation.reservationId
-            removedInfo = RemovedObjectInfo(
-                objectId = objectId,
-                sourceConfigKey = reserved.sourceConfigKey,
-                screenInstanceId = reserved.screenInstanceId,
-                sourceWeight = reserved.sourceWeight,
-                sourceType = reserved.sourceType,
-                reason = RemovalReason.RESERVED,
-            )
-            ReserveResult.Accepted(storedAd = reserved.toView(), reservation = reservation)
+            accepted
         }
         removedInfo?.let { onObjectRemoved?.invoke(it) }
         return result
@@ -186,7 +195,7 @@ public class AdStorage(
         val ready = current.withState(AdSlotState.READY)
         byObjectId[reservation.objectId] = ready
         val slot = StorageSlotKey(ready.sourceConfigKey, ready.screenInstanceId)
-        readyBySlot[slot] = reservation.objectId
+        addReadyLocked(slot, reservation.objectId)
         reservations.remove(reservationId)
         reservationByObject.remove(reservation.objectId)
         true
@@ -274,7 +283,10 @@ public class AdStorage(
                 return false
             }
             byObjectId[objectId] = current.withState(AdSlotState.EXPIRED)
-            readyBySlot.remove(StorageSlotKey(current.sourceConfigKey, current.screenInstanceId))
+            removeReadyLocked(
+                StorageSlotKey(current.sourceConfigKey, current.screenInstanceId),
+                objectId,
+            )
             PostLockAction(
                 handleToDestroy = current.sdkHandle,
                 removed = RemovedObjectInfo(
@@ -310,7 +322,10 @@ public class AdStorage(
     public fun destroy(objectId: ObjectId): Boolean {
         val action = synchronized(lock) {
             val current = byObjectId.remove(objectId) ?: return false
-            readyBySlot.entries.removeAll { it.value == objectId }
+            removeReadyLocked(
+                StorageSlotKey(current.sourceConfigKey, current.screenInstanceId),
+                objectId,
+            )
             clearReservationLocked(objectId)
             stateStore.removeSubjectAlreadyLocked(objectId.value)
             PostLockAction(
@@ -333,9 +348,25 @@ public class AdStorage(
         configKey: ConfigKey,
         screenInstanceId: ScreenInstanceId?,
     ): StoredAd? = synchronized(lock) {
-        val objectId = readyBySlot[StorageSlotKey(configKey, screenInstanceId)] ?: return null
+        val objectId = readyBySlot[StorageSlotKey(configKey, screenInstanceId)]?.firstOrNull()
+            ?: return null
         val ad = byObjectId[objectId] ?: return null
         ad.takeIf { it.state == AdSlotState.READY }
+    }
+
+    public fun readyCount(
+        configKey: ConfigKey,
+        screenInstanceId: ScreenInstanceId?,
+    ): Int = synchronized(lock) {
+        readyCountLocked(StorageSlotKey(configKey, screenInstanceId))
+    }
+
+    public fun readyCount(slot: StorageSlotKey): Int = synchronized(lock) {
+        readyCountLocked(slot)
+    }
+
+    public fun listReady(): List<StoredAd> = synchronized(lock) {
+        listReadyLocked()
     }
 
     public fun get(objectId: ObjectId): StoredAd? = synchronized(lock) {
@@ -349,7 +380,7 @@ public class AdStorage(
     override fun snapshot(): StorageInspectorSnapshot = synchronized(lock) {
         StorageInspectorSnapshot(
             objects = byObjectId.values.map { it.toView() },
-            readySlots = readyBySlot.toMap(),
+            readySlots = readyBySlot.mapValues { (_, ids) -> ids.toList() },
             reservations = reservations.values.toList(),
             slotStates = stateStore.snapshotStatesAlreadyLocked(),
             history = stateStore.historySnapshotAlreadyLocked(),
@@ -358,6 +389,51 @@ public class AdStorage(
     }
 
     public fun inspector(): StorageInspectorSnapshot = snapshot()
+
+    private fun reserveObjectLocked(
+        objectId: ObjectId,
+        expectedConfigKey: ConfigKey,
+        expectedScreenInstanceId: ScreenInstanceId?,
+    ): ReserveResult {
+        val current = byObjectId[objectId]
+            ?: return ReserveResult.Rejected("Missing StoredAd ${objectId.value}")
+        if (current.state != AdSlotState.READY) {
+            return ReserveResult.Rejected(
+                "Object ${objectId.value} state is ${current.state}, expected READY",
+            )
+        }
+        if (
+            current.sourceConfigKey != expectedConfigKey ||
+            current.screenInstanceId != expectedScreenInstanceId
+        ) {
+            return ReserveResult.Rejected("Slot metadata mismatch")
+        }
+        val applied = stateStore.applyIfAlreadyLocked(
+            subjectId = objectId.value,
+            expected = AdSlotState.READY,
+            event = AdsStateEvent.Reserve,
+            objectId = objectId,
+        )
+        if (applied is ApplyTransitionResult.Rejected) {
+            return ReserveResult.Rejected(applied.reason)
+        }
+        val reserved = current.withState(AdSlotState.RESERVED)
+        byObjectId[objectId] = reserved
+        removeReadyLocked(
+            StorageSlotKey(reserved.sourceConfigKey, reserved.screenInstanceId),
+            objectId,
+        )
+        val reservation = Reservation(
+            reservationId = ReservationId(idGenerator.nextId()),
+            objectId = objectId,
+            sourceConfigKey = reserved.sourceConfigKey,
+            screenInstanceId = reserved.screenInstanceId,
+            reservedAt = clock.nowMillis(),
+        )
+        reservations[reservation.reservationId] = reservation
+        reservationByObject[objectId] = reservation.reservationId
+        return ReserveResult.Accepted(storedAd = reserved.toView(), reservation = reservation)
+    }
 
     private fun consumeLocked(objectId: ObjectId): PostLockAction? {
         val current = byObjectId[objectId] ?: return null
@@ -372,8 +448,9 @@ public class AdStorage(
                     return null
                 }
                 byObjectId[objectId] = current.withState(AdSlotState.CONSUMED)
-                readyBySlot.remove(
+                removeReadyLocked(
                     StorageSlotKey(current.sourceConfigKey, current.screenInstanceId),
+                    objectId,
                 )
             }
             AdSlotState.RESERVED -> {
@@ -435,6 +512,24 @@ public class AdStorage(
     private fun finishOutsideLock(action: PostLockAction) {
         action.removed?.let { onObjectRemoved?.invoke(it) }
         action.handleToDestroy?.destroy()
+    }
+
+    private fun listReadyLocked(): List<StoredAd> =
+        byObjectId.values.filter { it.state == AdSlotState.READY }
+
+    private fun readyCountLocked(slot: StorageSlotKey): Int =
+        readyBySlot[slot]?.size ?: 0
+
+    private fun addReadyLocked(slot: StorageSlotKey, objectId: ObjectId) {
+        readyBySlot.getOrPut(slot) { LinkedHashSet() }.add(objectId)
+    }
+
+    private fun removeReadyLocked(slot: StorageSlotKey, objectId: ObjectId) {
+        val ids = readyBySlot[slot] ?: return
+        ids.remove(objectId)
+        if (ids.isEmpty()) {
+            readyBySlot.remove(slot)
+        }
     }
 
     private fun AdFormat.isNativeFormat(): Boolean =
