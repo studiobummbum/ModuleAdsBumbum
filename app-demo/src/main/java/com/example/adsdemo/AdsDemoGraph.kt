@@ -2,6 +2,7 @@ package com.example.adsdemo
 
 import android.app.Application
 import com.example.adsdemo.language.AppCompatLocaleApplier
+import com.example.adsdemo.lifecycle.ProcessLifecycleBridge
 import com.example.adsmodule.core.AudienceType
 import com.example.adsmodule.core.Clock
 import com.example.adsmodule.core.IdGenerator
@@ -13,17 +14,21 @@ import com.example.adsmodule.core.config.OriginalRemoteConfigRepository
 import com.example.adsmodule.core.fullscreen.FullscreenShowCoordinator
 import com.example.adsmodule.core.fullscreen.GlobalFullscreenLock
 import com.example.adsmodule.core.fullscreen.HostedFullscreenCoordinator
+import com.example.adsmodule.core.home.HomeAdsCoordinator
 import com.example.adsmodule.core.language.LanguageFlowCoordinator
 import com.example.adsmodule.core.lifecycle.AdsLifecycleCoordinator
 import com.example.adsmodule.core.lifecycle.ForegroundSessionTracker
+import com.example.adsmodule.core.lifecycle.LifecycleSimulatorApi
 import com.example.adsmodule.core.load.WeightedListLoader
 import com.example.adsmodule.core.normal.NormalScreenAdCoordinator
 import com.example.adsmodule.core.onboarding.OnboardingAdCoordinator
 import com.example.adsmodule.core.onboarding.OnboardingBoundaryCoordinator
+import com.example.adsmodule.core.onboarding.OnboardingFinishInterCoordinator
 import com.example.adsmodule.core.onboarding.full.OnboardingFullCoordinator
 import com.example.adsmodule.core.refill.AdsConfigSnapshotProvider
 import com.example.adsmodule.core.refill.RefillDeficitStore
 import com.example.adsmodule.core.refill.WholeListRefillScheduler
+import com.example.adsmodule.core.resume.AppOpenResumeCoordinator
 import com.example.adsmodule.core.splash.NativeFullSplashController
 import com.example.adsmodule.core.splash.SplashFlowCoordinator
 import com.example.adsmodule.core.splash.SplashStage
@@ -94,6 +99,13 @@ class AdsDemoGraph(
         it.attachFullscreenClicks(fullscreenShowCoordinator)
     }
 
+    val lifecycleSimulatorApi = LifecycleSimulatorApi(
+        lifecycle = lifecycleCoordinator,
+        fullscreenLock = fullscreenLock,
+        tokenStore = tokenStore,
+        clock = clock,
+    )
+
     private val deficitStore = RefillDeficitStore()
     private val snapshotProvider = AdsConfigSnapshotProvider { configRepository.snapshots.value }
     val refillScheduler = WholeListRefillScheduler(
@@ -140,6 +152,43 @@ class AdsDemoGraph(
         onboardingAds.onFullPreload = { index -> full.ensurePreloaded(index) }
     }
 
+    val onboardingFinishInter = OnboardingFinishInterCoordinator(
+        scope = appScope,
+        idGenerator = idGenerator,
+        loader = loader,
+        storage = storage,
+        fullscreen = fullscreenShowCoordinator,
+        refillScheduler = refillScheduler,
+        snapshotProvider = snapshotProvider,
+        audience = audience,
+    )
+
+    val homeAds = HomeAdsCoordinator(
+        scope = appScope,
+        clock = clock,
+        normalAds = normalScreenAds,
+        storage = storage,
+        fullscreen = fullscreenShowCoordinator,
+        refillScheduler = refillScheduler,
+        snapshotProvider = snapshotProvider,
+        audience = audience,
+    )
+
+    val appOpenResume = AppOpenResumeCoordinator(
+        scope = appScope,
+        clock = clock,
+        idGenerator = idGenerator,
+        lifecycle = lifecycleCoordinator,
+        loader = loader,
+        storage = storage,
+        fullscreen = fullscreenShowCoordinator,
+        refillScheduler = refillScheduler,
+        snapshotProvider = snapshotProvider,
+        audience = audience,
+    )
+
+    val processLifecycleBridge = ProcessLifecycleBridge(appOpenResume)
+
     val languageCoordinator = LanguageFlowCoordinator(
         scope = appScope,
         clock = clock,
@@ -170,10 +219,13 @@ class AdsDemoGraph(
     )
 
     fun warmUp() {
+        processLifecycleBridge.start()
         appScope.launch {
             configRepository.refresh()
             val snapshot = configRepository.snapshots.value ?: return@launch
             splashCoordinator.startOrAttach(snapshot)
+            homeAds.ensureBannerPreloaded()
+            appOpenResume.ensurePreloaded()
         }
         appScope.launch {
             splashCoordinator.snapshot.collectLatest { snap ->

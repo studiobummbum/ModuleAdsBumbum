@@ -32,4 +32,23 @@
     <string name="onboarding_full_continue">Continue</string>
     <string name="onboarding_placeholder_title">Onboarding Pager 1</string>
     <string name="onboarding_placeholder_body">Phase 10 destination placeholder. Phase 11 will add ViewPager2.</string>
+    <string name="home_title">Home</string>
+    <string name="home_status_idle">Home ready</string>
+    <string name="home_status_banner_ready">Banner Home bound</string>
+    <string name="home_status_triggering_inter">Triggering Home Inter…</string>
+    <string name="home_status_inter_shown">Inter shown: %1$s</string>
+    <string name="home_status_inter_failed">Inter failed: %1$s</string>
+    <string name="home_status_inter_rejected">Inter rejected: %1$s</string>
+    <string name="home_status_interval_blocked">Inter interval blocked (%1$d ms left)</string>
+    <string name="home_status_background">Simulated background (USER_BACKGROUND)</string>
+    <string name="home_status_foreground">Simulated foreground</string>
+    <string name="home_status_ignored">Lifecycle ignored: %1$s</string>
+    <string name="home_status_appopen_shown">App Open shown: %1$s</string>
+    <string name="home_status_appopen_suppressed">App Open suppressed: %1$s</string>
+    <string name="home_status_appopen_skipped">App Open skipped: %1$s</string>
+    <string name="home_status_appopen_failed">App Open failed: %1$s</string>
+    <string name="home_status_appopen_rejected">App Open rejected: %1$s</string>
+    <string name="home_trigger_action">Trigger Home action (Inter)</string>
+    <string name="home_simulate_background">Simulate background</string>
+    <string name="home_simulate_foreground">Simulate foreground</string>
 </resources>

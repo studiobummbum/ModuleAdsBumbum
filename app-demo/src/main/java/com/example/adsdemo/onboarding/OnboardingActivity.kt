@@ -8,9 +8,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
-import com.example.adsdemo.MainActivity
 import com.example.adsdemo.R
 import com.example.adsdemo.databinding.ActivityOnboardingBinding
+import com.example.adsdemo.home.HomeActivity
 import com.example.adsmodule.core.onboarding.OnboardingForwardResult
 import com.example.adsmodule.core.onboarding.OnboardingNavigationEffect
 import kotlinx.coroutines.launch
@@ -134,8 +134,13 @@ class OnboardingActivity : AppCompatActivity() {
             }
             OnboardingNavigationEffect.OPEN_HOME -> {
                 if (!viewModel.claimEffect(effect)) return
-                startActivity(Intent(this, MainActivity::class.java))
-                finish()
+                val graph = (application as AdsDemoApplication).graph
+                graph.onboardingFinishInter.finishAsync { _ ->
+                    runOnUiThread {
+                        startActivity(Intent(this, HomeActivity::class.java))
+                        finish()
+                    }
+                }
             }
         }
     }
