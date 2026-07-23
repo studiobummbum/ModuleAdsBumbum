@@ -49,11 +49,24 @@ public class OnboardingAdCoordinator(
     public fun onPageVisible(logicalPage: Int) {
         OnboardingPages.requireValid(logicalPage)
         when (logicalPage) {
-            1 -> preloadEligible(listOf(3))
-            2 -> preloadEligible(listOf(4))
+            1 -> {
+                preloadEligible(listOf(3))
+                onFullPreload?.invoke(1)
+            }
+            2 -> {
+                preloadEligible(listOf(4))
+                onFullPreload?.invoke(2)
+            }
+            3 -> onFullPreload?.invoke(2)
         }
         preloadEligible(listOf(logicalPage))
     }
+
+    /**
+     * Optional hook so demo/app can preload Full 1/2 without ads-core depending on
+     * Full Activity UI. Full index is 1 or 2.
+     */
+    public var onFullPreload: ((fullIndex: Int) -> Unit)? = null
 
     public fun preloadEligible(pages: Collection<Int>) {
         val policy = policyRef.get()

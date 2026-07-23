@@ -6,6 +6,7 @@ import com.example.adsmodule.core.OnboardingSessionId
 import com.example.adsmodule.core.ScreenInstanceId
 import com.example.adsmodule.core.normal.NormalScreenBindSession
 import com.example.adsmodule.core.normal.NormalScreenSlotState
+import com.example.adsmodule.core.onboarding.full.FullExitSource
 import com.example.adsmodule.core.storage.OnboardingScreenInstances
 
 /** Logical onboarding page numbers are always 1..4. */
@@ -141,6 +142,7 @@ public data class OnboardingFullResult(
     val fullSessionId: FullSessionId,
     val fullIndex: Int,
     val targetLogicalPage: Int?,
+    val exitSource: FullExitSource = FullExitSource.CLOSE_X,
 )
 
 public data class OnboardingBoundAd(

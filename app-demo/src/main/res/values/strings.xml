@@ -27,7 +27,8 @@
     <string name="onboarding_native_title">Onboarding Native %1$d</string>
     <string name="onboarding_full1_title">Onboarding Full 1</string>
     <string name="onboarding_full2_title">Onboarding Full 2</string>
-    <string name="onboarding_full_placeholder_body">Phase 11 navigation placeholder. Phase 12 adds swipe, X and auto-skip.</string>
+    <string name="onboarding_full_ad_unavailable">Native Full unavailable — continue via swipe, X or auto-skip</string>
+    <string name="onboarding_full_media">Media</string>
     <string name="onboarding_full_continue">Continue</string>
     <string name="onboarding_placeholder_title">Onboarding Pager 1</string>
     <string name="onboarding_placeholder_body">Phase 10 destination placeholder. Phase 11 will add ViewPager2.</string>

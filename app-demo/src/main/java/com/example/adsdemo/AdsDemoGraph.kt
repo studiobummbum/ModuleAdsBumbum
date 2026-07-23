@@ -20,6 +20,7 @@ import com.example.adsmodule.core.load.WeightedListLoader
 import com.example.adsmodule.core.normal.NormalScreenAdCoordinator
 import com.example.adsmodule.core.onboarding.OnboardingAdCoordinator
 import com.example.adsmodule.core.onboarding.OnboardingBoundaryCoordinator
+import com.example.adsmodule.core.onboarding.full.OnboardingFullCoordinator
 import com.example.adsmodule.core.refill.AdsConfigSnapshotProvider
 import com.example.adsmodule.core.refill.RefillDeficitStore
 import com.example.adsmodule.core.refill.WholeListRefillScheduler
@@ -126,6 +127,18 @@ class AdsDemoGraph(
         clock = clock,
         idGenerator = idGenerator,
     )
+
+    val onboardingFullCoordinator = OnboardingFullCoordinator(
+        scope = appScope,
+        clock = clock,
+        idGenerator = idGenerator,
+        normalAds = normalScreenAds,
+        hosted = hostedFullscreenCoordinator,
+        snapshotProvider = snapshotProvider,
+        audience = audience,
+    ).also { full ->
+        onboardingAds.onFullPreload = { index -> full.ensurePreloaded(index) }
+    }
 
     val languageCoordinator = LanguageFlowCoordinator(
         scope = appScope,

@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContract
 import com.example.adsmodule.core.FullSessionId
 import com.example.adsmodule.core.OnboardingSessionId
 import com.example.adsmodule.core.onboarding.OnboardingFullResult
+import com.example.adsmodule.core.onboarding.full.FullExitSource
 
 class OnboardingFullContract(
     private val fullIndex: Int,
@@ -44,11 +45,15 @@ class OnboardingFullContract(
         } else {
             null
         }
+        val exitSource = intent.getStringExtra(EXTRA_EXIT_SOURCE)
+            ?.let { runCatching { FullExitSource.valueOf(it) }.getOrNull() }
+            ?: FullExitSource.CLOSE_X
         return OnboardingFullResult(
             sessionId = OnboardingSessionId(sessionId),
             fullSessionId = FullSessionId(fullSessionId),
             fullIndex = index,
             targetLogicalPage = target,
+            exitSource = exitSource,
         )
     }
 
@@ -58,5 +63,6 @@ class OnboardingFullContract(
         const val EXTRA_FULL_INDEX = "onboarding_full_index"
         const val EXTRA_TARGET_PAGE = "onboarding_full_target_page"
         const val EXTRA_HAS_TARGET = "onboarding_full_has_target"
+        const val EXTRA_EXIT_SOURCE = "onboarding_full_exit_source"
     }
 }
