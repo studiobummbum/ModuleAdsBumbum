@@ -6,6 +6,8 @@ import com.example.adsmodule.core.SessionId
 import java.util.concurrent.atomic.AtomicLong
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -65,6 +67,27 @@ class AdClickTokenStoreTest {
         env.store.issue(env.session, ttlMillis = 1_000L)
         assertEquals(2, env.store.invalidateSession(env.session))
         assertEquals(0, env.store.snapshot().tokens.size)
+    }
+
+    @Test
+    fun hasValidToken_trueUntilExpiryBoundary() {
+        val env = Env()
+        env.store.issue(env.session, ttlMillis = 100L)
+        assertTrue(env.store.hasValidToken(env.session))
+        assertNotNull(env.store.findValidToken(env.session))
+        env.clock.advance(99L)
+        assertTrue(env.store.hasValidToken(env.session))
+        env.clock.advance(1L)
+        assertFalse(env.store.hasValidToken(env.session))
+        assertNull(env.store.findValidToken(env.session))
+        assertEquals(0, env.store.snapshot().tokens.size)
+    }
+
+    @Test
+    fun hasValidToken_ignoresOtherSessions() {
+        val env = Env()
+        env.store.issue(SessionId("other"), ttlMillis = 1_000L)
+        assertFalse(env.store.hasValidToken(env.session))
     }
 
     private class Env {

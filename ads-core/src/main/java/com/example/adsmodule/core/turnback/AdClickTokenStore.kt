@@ -107,6 +107,36 @@ public class AdClickTokenStore(
         removed.size
     }
 
+    /**
+     * Returns true when [sessionId] has at least one non-expired VALID or CLAIMED token.
+     * Expired tokens are purged as a side effect of the query.
+     */
+    public fun hasValidToken(
+        sessionId: SessionId,
+        nowMillis: Long = clock.nowMillis(),
+    ): Boolean = synchronized(lock) {
+        purgeExpiredLocked(nowMillis)
+        tokens.values.any { it.sessionId == sessionId }
+    }
+
+    /**
+     * First non-expired token for [sessionId], if any. Expired tokens are purged first.
+     */
+    public fun findValidToken(
+        sessionId: SessionId,
+        nowMillis: Long = clock.nowMillis(),
+    ): AdClickTokenView? = synchronized(lock) {
+        purgeExpiredLocked(nowMillis)
+        tokens.values.firstOrNull { it.sessionId == sessionId }?.let {
+            AdClickTokenView(
+                tokenId = it.tokenId,
+                sessionId = it.sessionId,
+                expiresAtMillis = it.expiresAtMillis,
+                state = it.state,
+            )
+        }
+    }
+
     public fun snapshot(nowMillis: Long = clock.nowMillis()): AdClickTokenSnapshot =
         synchronized(lock) {
             purgeExpiredLocked(nowMillis)

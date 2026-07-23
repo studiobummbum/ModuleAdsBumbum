@@ -60,6 +60,12 @@ public sealed interface FakeSdkEvent {
         override val occurredAtMillis: Long,
     ) : FakeSdkEvent
 
+    public data class Shown(
+        val showRequestId: String,
+        val objectId: String,
+        override val occurredAtMillis: Long,
+    ) : FakeSdkEvent
+
     public data class ShowFailed(
         val showRequestId: String,
         val objectId: String?,

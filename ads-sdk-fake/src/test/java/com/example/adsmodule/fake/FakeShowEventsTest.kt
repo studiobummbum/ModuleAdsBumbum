@@ -43,16 +43,23 @@ class FakeShowEventsTest {
                 .toList(emitted)
         }
         runCurrent()
-        assertTrue(emitted.isEmpty())
+        assertEquals(listOf(AdShowEvent.Shown("show-1")), emitted)
 
         advanceTimeBy(100L)
         runCurrent()
-        assertEquals(listOf(AdShowEvent.Impression("show-1")), emitted)
+        assertEquals(
+            listOf(
+                AdShowEvent.Shown("show-1"),
+                AdShowEvent.Impression("show-1"),
+            ),
+            emitted,
+        )
 
         advanceTimeBy(200L)
         runCurrent()
         assertEquals(
             listOf(
+                AdShowEvent.Shown("show-1"),
                 AdShowEvent.Impression("show-1"),
                 AdShowEvent.Click("show-1"),
             ),
@@ -64,6 +71,7 @@ class FakeShowEventsTest {
         show.await()
         assertEquals(
             listOf(
+                AdShowEvent.Shown("show-1"),
                 AdShowEvent.Impression("show-1"),
                 AdShowEvent.Click("show-1"),
                 AdShowEvent.Dismiss("show-1"),
@@ -77,10 +85,11 @@ class FakeShowEventsTest {
         assertEquals("fake-mediation", impression.fakeNetworkName)
         assertEquals(42_000L, impression.fakeRevenueMicros)
         assertEquals(
-            listOf(100L, 300L, 600L),
+            listOf(0L, 100L, 300L, 600L),
             environment.controller.eventsSnapshot()
                 .filter {
-                    it is FakeSdkEvent.Impression ||
+                    it is FakeSdkEvent.Shown ||
+                        it is FakeSdkEvent.Impression ||
                         it is FakeSdkEvent.Click ||
                         it is FakeSdkEvent.Dismiss
                 }
@@ -116,12 +125,19 @@ class FakeShowEventsTest {
         }
         runCurrent()
 
-        assertTrue(first.await().single() is AdShowEvent.Fail)
-        assertTrue(second.await().single() is AdShowEvent.Fail)
+        val firstEvents = first.await()
+        val secondEvents = second.await()
+        assertTrue(firstEvents.single() is AdShowEvent.Fail)
+        assertTrue(secondEvents.single() is AdShowEvent.Fail)
+        assertFalse(firstEvents.any { it is AdShowEvent.Shown })
+        assertFalse(secondEvents.any { it is AdShowEvent.Shown })
         assertTrue(handle.consumed)
         assertEquals(
             2,
             environment.controller.eventsSnapshot().count { it is FakeSdkEvent.ShowFailed },
+        )
+        assertFalse(
+            environment.controller.eventsSnapshot().any { it is FakeSdkEvent.Shown },
         )
     }
 
@@ -185,7 +201,13 @@ class FakeShowEventsTest {
         advanceTimeBy(100L)
         runCurrent()
 
-        assertEquals(listOf(AdShowEvent.Impression("show-destroy-mid")), show.await())
+        assertEquals(
+            listOf(
+                AdShowEvent.Shown("show-destroy-mid"),
+                AdShowEvent.Impression("show-destroy-mid"),
+            ),
+            show.await(),
+        )
         assertFalse(
             environment.controller.eventsSnapshot().any {
                 it is FakeSdkEvent.Click || it is FakeSdkEvent.Dismiss

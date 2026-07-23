@@ -81,6 +81,16 @@ public data class AdShowRequest(
 public sealed interface AdShowEvent {
     public val showRequestId: String
 
+    /**
+     * Fullscreen presentation succeeded.
+     *
+     * Distinct from [Impression]: splash-skip and other navigation timers must start
+     * from [Shown], never from load success, READY, or impression alone.
+     */
+    public data class Shown(
+        override val showRequestId: String,
+    ) : AdShowEvent
+
     public data class Impression(
         override val showRequestId: String,
     ) : AdShowEvent

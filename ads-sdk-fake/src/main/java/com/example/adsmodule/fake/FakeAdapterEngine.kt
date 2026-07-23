@@ -218,6 +218,15 @@ internal class FakeAdapterEngine(
             return@flow
         }
 
+        controller.record(
+            FakeSdkEvent.Shown(
+                showRequestId = request.showRequestId,
+                objectId = handle.objectId,
+                occurredAtMillis = controller.clock.nowMillis(),
+            ),
+        )
+        emit(AdShowEvent.Shown(showRequestId = request.showRequestId))
+
         delay(handle.scenarioConfig.impressionDelayMillis)
         if (handle.destroyed) return@flow
         controller.record(
