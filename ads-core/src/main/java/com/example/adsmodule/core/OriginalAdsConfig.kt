@@ -2,6 +2,7 @@ package com.example.adsmodule.core
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 public enum class AudienceType {
     PAID,
@@ -21,6 +22,8 @@ public data class OriginalAdItem(
     val type: String? = null,
     @SerialName("adunit")
     val adunit: String,
+    @Transient
+    val sourceListIndex: Int = -1,
 )
 
 @Serializable
@@ -33,37 +36,12 @@ public data class OriginalAdsConfig(
     val timeoutTotalMillis: Long? = null,
     @SerialName("type_layout")
     val typeLayout: String? = null,
+    @SerialName("collapsible")
+    val collapsible: String? = null,
+    @SerialName("refresh_time")
+    val refreshTime: String? = null,
+    @SerialName("interval")
+    val intervalMillis: Long? = null,
     @SerialName("list_ads")
-    val listAds: List<OriginalAdItem> = emptyList(),
+    val listAds: List<OriginalAdItem>,
 )
-
-public data class ConfigValidationError(
-    val sourceListIndex: Int,
-    val field: String,
-    val message: String,
-)
-
-/**
- * Validates domain rules after Remote Config has been decoded.
- */
-public class OriginalAdsConfigValidator {
-    public fun validate(config: OriginalAdsConfig): List<ConfigValidationError> =
-        config.listAds.mapIndexedNotNull { index, item ->
-            if (item.weight < 0) {
-                ConfigValidationError(
-                    sourceListIndex = index,
-                    field = "weight",
-                    message = "list_ads[$index].weight must not be negative",
-                )
-            } else {
-                null
-            }
-        }
-
-    public fun requireValid(config: OriginalAdsConfig) {
-        val errors = validate(config)
-        require(errors.isEmpty()) {
-            errors.joinToString(separator = "; ") { it.message }
-        }
-    }
-}

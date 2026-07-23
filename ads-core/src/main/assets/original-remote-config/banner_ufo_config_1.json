@@ -1,0 +1,18 @@
+{
+  "enable": true,
+  "isOrganic": false,
+  "collapsible": "false",
+  "refresh_time": "",
+  "list_ads": [
+    {
+      "enable_ad": true,
+      "weight": 100,
+      "adunit": "{{BANNER_UFO_0}}"
+    },
+    {
+      "enable_ad": true,
+      "weight": 90,
+      "adunit": "{{BANNER_UFO_1}}"
+    }
+  ]
+}

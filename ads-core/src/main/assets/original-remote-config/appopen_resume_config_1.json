@@ -1,0 +1,16 @@
+{
+  "enable": true,
+  "isOrganic": true,
+  "list_ads": [
+    {
+      "enable_ad": true,
+      "weight": 100,
+      "adunit": "{{APPOPEN_RESUME_0}}"
+    },
+    {
+      "enable_ad": true,
+      "weight": 90,
+      "adunit": "{{APPOPEN_RESUME_1}}"
+    }
+  ]
+}

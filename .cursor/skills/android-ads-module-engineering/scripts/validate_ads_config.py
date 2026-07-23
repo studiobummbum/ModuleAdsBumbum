@@ -8,6 +8,23 @@ import sys
 
 ALLOWED_TYPES = {"inter", "appopen", "native"}
 FORBIDDEN_ROOT_KEYS = {"schema_version", "candidates", "candidate_sets", "ad_unit_id"}
+BOOLEAN_CONFIG_KEYS = {"reopen_language", "enable_ads_app"}
+AD_CONFIG_KEYS = {
+    "inter_splash_config_1",
+    "native_splash_full_config_1",
+    "inter_onboarding_config_1",
+    "appopen_resume_config_1",
+    "native_splash_config_1",
+    "native_language_loading_config_1",
+    "native_language_config_1",
+    "native_language_dup_config_1",
+    "native_onboarding_config_1",
+    "native_onb_full_config_1",
+    "native_onb_full_2_config_1",
+    "banner_ufo_config_1",
+    "banner_home_config_1",
+    "inter_all_config_1",
+}
 
 
 def collect_files(paths):
@@ -21,6 +38,10 @@ def collect_files(paths):
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("paths", nargs="+", type=Path)
     parser.add_argument("--strict", action="store_true")
@@ -41,10 +62,17 @@ def main() -> int:
             errors.append(f"{path}: JSON invalid: {exc}")
             continue
 
+        if path.stem in BOOLEAN_CONFIG_KEYS:
+            if not isinstance(root, bool):
+                errors.append(f"{path}: root phải là Boolean.")
+            continue
+
         if isinstance(root, list):
+            if path.stem in AD_CONFIG_KEYS:
+                errors.append(f"{path}: ad config root phải là Object.")
             continue
         if not isinstance(root, dict):
-            errors.append(f"{path}: root phải là Object hoặc Array.")
+            errors.append(f"{path}: root phải là Object, Array hoặc Boolean đã đăng ký.")
             continue
 
         for key in FORBIDDEN_ROOT_KEYS:
@@ -60,12 +88,21 @@ def main() -> int:
         if "isOrganic" in root and not isinstance(root["isOrganic"], bool):
             errors.append(f"{path}.isOrganic: phải là Boolean.")
 
-        if "time_skip" in root:
-            time_skip = root["time_skip"]
-            if not isinstance(time_skip, int) or isinstance(time_skip, bool) or time_skip < 0:
-                errors.append(f"{path}.time_skip: phải là Number >= 0.")
+        for timing_field in ("time_skip", "auto_skip", "time_delay_X_button"):
+            if timing_field in root:
+                timing_value = root[timing_field]
+                if (
+                    not isinstance(timing_value, int)
+                    or isinstance(timing_value, bool)
+                    or timing_value < 0
+                ):
+                    errors.append(
+                        f"{path}.{timing_field}: phải là Number nguyên >= 0."
+                    )
 
         if "list_ads" not in root:
+            if path.stem in AD_CONFIG_KEYS:
+                errors.append(f"{path}.list_ads: ad config bắt buộc có Array này.")
             continue
 
         items = root["list_ads"]
@@ -86,13 +123,15 @@ def main() -> int:
             weight = item.get("weight")
             if not isinstance(weight, int) or isinstance(weight, bool):
                 errors.append(f"{loc}.weight: phải là Number nguyên.")
+            elif weight < 0:
+                errors.append(f"{loc}.weight: phải >= 0.")
             else:
                 weights.append(weight)
 
             adunit = item.get("adunit")
             if not isinstance(adunit, str):
                 errors.append(f"{loc}.adunit: phải là String.")
-            elif adunit == "" or "{{" in adunit:
+            elif adunit.strip() == "" or "{{" in adunit or adunit.strip() == "ca-app-pub-":
                 warnings.append(f"{loc}.adunit: đang rỗng hoặc placeholder.")
 
             item_type = item.get("type")

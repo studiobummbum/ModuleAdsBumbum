@@ -1,0 +1,17 @@
+{
+  "enable": true,
+  "isOrganic": true,
+  "type_layout": "native_small_cta_bottom",
+  "list_ads": [
+    {
+      "enable_ad": true,
+      "weight": 100,
+      "adunit": "{{NATIVE_SPLASH_0}}"
+    },
+    {
+      "enable_ad": true,
+      "weight": 90,
+      "adunit": "{{NATIVE_SPLASH_1}}"
+    }
+  ]
+}

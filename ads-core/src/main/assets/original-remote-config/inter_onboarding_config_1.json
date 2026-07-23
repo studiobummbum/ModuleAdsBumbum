@@ -1,0 +1,21 @@
+{
+  "enable": true,
+  "isOrganic": false,
+  "timeout_total": 30000,
+  "list_ads": [
+    {
+      "enable_ad": true,
+      "weight": 100,
+      "timeout": 15000,
+      "type": "inter",
+      "adunit": "{{INTER_ONBOARDING_0}}"
+    },
+    {
+      "enable_ad": true,
+      "weight": 90,
+      "timeout": 15000,
+      "type": "inter",
+      "adunit": "{{INTER_ONBOARDING_1}}"
+    }
+  ]
+}

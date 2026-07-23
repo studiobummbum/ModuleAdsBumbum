@@ -1,0 +1,19 @@
+{
+  "enable": true,
+  "isOrganic": true,
+  "interval": 30000,
+  "list_ads": [
+    {
+      "enable_ad": true,
+      "weight": 100,
+      "type": "inter",
+      "adunit": "{{INTER_ALL_0}}"
+    },
+    {
+      "enable_ad": true,
+      "weight": 90,
+      "type": "inter",
+      "adunit": "{{INTER_ALL_1}}"
+    }
+  ]
+}

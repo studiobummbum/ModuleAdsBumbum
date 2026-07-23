@@ -8,7 +8,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -41,25 +40,6 @@ class CoreContractsTest {
         assertFalse(json.contains("candidates"))
         assertEquals(1, "\"list_ads\"".toRegex().findAll(json).count())
         assertEquals(config, decoded)
-    }
-
-    @Test
-    fun validator_rejectsNegativeItemWeight() {
-        val config = validConfig().copy(
-            listAds = listOf(
-                validConfig().listAds.single().copy(weight = -1),
-            ),
-        )
-        val validator = OriginalAdsConfigValidator()
-
-        val errors = validator.validate(config)
-
-        assertEquals(1, errors.size)
-        assertEquals(0, errors.single().sourceListIndex)
-        assertEquals("weight", errors.single().field)
-        assertThrows(IllegalArgumentException::class.java) {
-            validator.requireValid(config)
-        }
     }
 
     @Test

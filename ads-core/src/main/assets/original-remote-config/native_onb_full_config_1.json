@@ -1,0 +1,17 @@
+{
+  "enable": true,
+  "isOrganic": true,
+  "type_layout": "other",
+  "list_ads": [
+    {
+      "enable_ad": true,
+      "weight": 100,
+      "adunit": "{{NATIVE_ONBOARDING_FULL_0}}"
+    },
+    {
+      "enable_ad": true,
+      "weight": 90,
+      "adunit": "{{NATIVE_ONBOARDING_FULL_1}}"
+    }
+  ]
+}

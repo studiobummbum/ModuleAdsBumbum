@@ -1,0 +1,18 @@
+[
+  {
+    "ads_onboard1": true,
+    "isOrganic": true
+  },
+  {
+    "ads_onboard2": true,
+    "isOrganic": false
+  },
+  {
+    "ads_onboard3": true,
+    "isOrganic": false
+  },
+  {
+    "ads_onboard4": true,
+    "isOrganic": true
+  }
+]
