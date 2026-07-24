@@ -34,6 +34,8 @@ dependencies {
     debugImplementation(project(":ads-debug"))
     implementation(project(":ads-core"))
     implementation(project(":ads-sdk-fake"))
+    implementation(project(":ads-sdk-admob"))
+    implementation(libs.play.services.ads)
 
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.ktx)

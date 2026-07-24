@@ -30,6 +30,7 @@ import com.example.adsmodule.core.storage.PutResult
 import com.example.adsmodule.core.storage.ReserveResult
 import com.example.adsmodule.core.storage.StorageSlotKey
 import com.example.adsmodule.sdk.AdFormat
+import com.example.adsmodule.sdk.AdPresentationHost
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -67,6 +68,7 @@ public class SplashFlowCoordinator(
     private val lifecycle: AdsLifecycleCoordinator,
     private val refillScheduler: WholeListRefillScheduler? = null,
     private val audience: AudienceType = AudienceType.PAID,
+    private val presentationHostProvider: () -> AdPresentationHost? = { null },
 ) {
     private val startMutex = Mutex()
     private val effectClaimed = ConcurrentClaimSet()
@@ -514,7 +516,11 @@ public class SplashFlowCoordinator(
                     )
                 }
                 emitStage(sessionId, SplashStage.PRIMARY_SHOWING)
-                val result = fullscreen.show(reserved.reservation.reservationId, kind)
+                val result = fullscreen.show(
+                    reserved.reservation.reservationId,
+                    kind,
+                    presentationHostProvider(),
+                )
                 if (result is FullscreenShowResult.Rejected || result is FullscreenShowResult.Failed) {
                     if (!primaryAdvanceGate.get()) {
                         advanceToNativeFull(sessionId, "primary show failed", null, false)

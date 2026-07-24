@@ -8,6 +8,7 @@ import com.example.adsmodule.core.ShowRequestId
 import com.example.adsmodule.core.storage.AdStorage
 import com.example.adsmodule.core.storage.ReserveResult
 import com.example.adsmodule.sdk.AdFormat
+import com.example.adsmodule.sdk.AdPresentationHost
 import com.example.adsmodule.sdk.AdSdkAdapterRegistry
 import com.example.adsmodule.sdk.AdShowEvent
 import com.example.adsmodule.sdk.AdShowRequest
@@ -56,6 +57,7 @@ public class FullscreenShowCoordinator(
     public suspend fun show(
         reservationId: ReservationId,
         kind: FullscreenAdKind,
+        host: AdPresentationHost? = null,
     ): FullscreenShowResult {
         val reservation = storage.getReservation(reservationId)
             ?: return FullscreenShowResult.Rejected("Reservation not found")
@@ -129,6 +131,7 @@ public class FullscreenShowCoordinator(
                 AdShowRequest(
                     showRequestId = showRequestId.value,
                     handle = storedAd.sdkHandle,
+                    host = host,
                 ),
             ).collect { event ->
                 if (event.showRequestId != showRequestId.value) {
@@ -223,9 +226,10 @@ public class FullscreenShowCoordinator(
     public suspend fun reserveAndShow(
         reserve: () -> ReserveResult,
         kind: FullscreenAdKind,
+        host: AdPresentationHost? = null,
     ): FullscreenShowResult {
         return when (val reserved = reserve()) {
-            is ReserveResult.Accepted -> show(reserved.reservation.reservationId, kind)
+            is ReserveResult.Accepted -> show(reserved.reservation.reservationId, kind, host)
             is ReserveResult.Rejected -> FullscreenShowResult.Rejected(reserved.reason)
         }
     }

@@ -9,6 +9,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
 import com.example.adsdemo.R
 import com.example.adsdemo.databinding.ActivityHomeBinding
+import com.example.adsdemo.sdk.SelectingHomeBannerBinder
 import com.example.adsmodule.core.home.HomeInterShowResult
 import com.example.adsmodule.core.lifecycle.AdsLifecycleTransitionResult
 import com.example.adsmodule.core.lifecycle.BackgroundReason
@@ -19,7 +20,9 @@ import kotlinx.coroutines.launch
 
 class HomeActivity : AppCompatActivity() {
     private lateinit var binding: ActivityHomeBinding
-    private val binder: HomeBannerBinder = FakeHomeBannerBinder()
+    private val binder: HomeBannerBinder by lazy {
+        SelectingHomeBannerBinder(graph.sdkBackend)
+    }
     private var boundBannerObjectId: String? = null
 
     private val graph get() = (application as AdsDemoApplication).graph

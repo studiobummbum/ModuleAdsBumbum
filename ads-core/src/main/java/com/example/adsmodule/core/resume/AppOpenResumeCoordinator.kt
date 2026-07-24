@@ -20,6 +20,7 @@ import com.example.adsmodule.core.storage.ReserveResult
 import com.example.adsmodule.core.storage.StorageSlotKey
 import com.example.adsmodule.core.LoadCycleId
 import com.example.adsmodule.core.IdGenerator
+import com.example.adsmodule.sdk.AdPresentationHost
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +49,7 @@ public class AppOpenResumeCoordinator(
     private val snapshotProvider: AdsConfigSnapshotProvider,
     private val audience: AudienceType,
     private val screenInstanceId: ScreenInstanceId = ScreenInstanceId("appopen-resume-1"),
+    private val presentationHostProvider: () -> AdPresentationHost? = { null },
 ) {
     private val mutex = Mutex()
     private val showInFlight = AtomicBoolean(false)
@@ -166,6 +168,7 @@ public class AppOpenResumeCoordinator(
             val result = fullscreen.show(
                 reserved.reservation.reservationId,
                 FullscreenAdKind.APP_OPEN,
+                presentationHostProvider(),
             )
         ) {
             is FullscreenShowResult.Dismissed -> {

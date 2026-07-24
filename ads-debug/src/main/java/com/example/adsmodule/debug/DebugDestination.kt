@@ -11,6 +11,7 @@ import com.example.adsmodule.debug.ui.NavigationGraphInspectorFragment
 import com.example.adsmodule.debug.ui.PlacementInspectorFragment
 import com.example.adsmodule.debug.ui.RefillQueueInspectorFragment
 import com.example.adsmodule.debug.ui.RemoteConfigEditorFragment
+import com.example.adsmodule.debug.ui.SdkBackendSelectorFragment
 import com.example.adsmodule.debug.ui.StorageInspectorFragment
 import com.example.adsmodule.debug.ui.TurnbackSimulatorFragment
 import com.example.adsmodule.debug.ui.ViewPagerBoundarySimulatorFragment
@@ -34,4 +35,5 @@ enum class DebugDestination(
     FULL_GESTURE("Full Activity Gesture Simulator", ::FullActivityGestureSimulatorFragment),
     EVENT_LOG("Event Log", ::EventLogFragment),
     LAYOUT_GALLERY("Native Layout Gallery", ::NativeLayoutGalleryFragment),
+    SDK_BACKEND("SDK Backend (Fake / AdMob Test)", ::SdkBackendSelectorFragment),
 }

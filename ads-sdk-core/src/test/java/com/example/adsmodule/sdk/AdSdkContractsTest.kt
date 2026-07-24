@@ -78,6 +78,21 @@ class AdSdkContractsTest {
         )
     }
 
+    @Test
+    fun showRequest_defaultsHostToNullAndAcceptsOpaqueHost() {
+        val handle = TestHandle()
+        val withoutHost = AdShowRequest(showRequestId = "show-1", handle = handle)
+        assertEquals(null, withoutHost.host)
+
+        val host = object : AdPresentationHost {}
+        val withHost = AdShowRequest(
+            showRequestId = "show-2",
+            handle = handle,
+            host = host,
+        )
+        assertSame(host, withHost.host)
+    }
+
     private fun AdLoadResult.successHandle(): SdkLoadedAdHandle =
         (this as AdLoadResult.Success).handle
 

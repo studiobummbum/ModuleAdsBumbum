@@ -10,6 +10,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
 import com.example.adsdemo.databinding.ActivitySplashBinding
 import com.example.adsdemo.language.LanguageLoadingActivity
+import com.example.adsdemo.sdk.SelectingSplashInlineAdBinder
 import com.example.adsmodule.core.SplashSessionId
 import com.example.adsmodule.core.splash.SplashFlowSnapshot
 import com.example.adsmodule.core.splash.SplashLoadStatus
@@ -19,7 +20,9 @@ import kotlinx.coroutines.launch
 
 class SplashActivity : AppCompatActivity() {
     private lateinit var binding: ActivitySplashBinding
-    private val binder: SplashInlineAdBinder = FakeSplashInlineAdBinder()
+    private val binder: SplashInlineAdBinder by lazy {
+        SelectingSplashInlineAdBinder(graph.sdkBackend)
+    }
     private var boundNativeObjectId: String? = null
     private var boundBannerObjectId: String? = null
     private var attachedSessionId: String? = null

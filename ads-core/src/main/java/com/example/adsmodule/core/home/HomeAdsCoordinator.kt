@@ -18,6 +18,7 @@ import com.example.adsmodule.core.splash.AudienceEligibility
 import com.example.adsmodule.core.storage.AdStorage
 import com.example.adsmodule.core.storage.ReserveResult
 import com.example.adsmodule.core.storage.StorageSlotKey
+import com.example.adsmodule.sdk.AdPresentationHost
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
@@ -44,6 +45,7 @@ public class HomeAdsCoordinator(
     private val audience: AudienceType,
     private val intervalGate: InterIntervalGate = InterIntervalGate(),
     private val screenInstanceId: ScreenInstanceId = ScreenInstanceId("home-1"),
+    private val presentationHostProvider: () -> AdPresentationHost? = { null },
 ) {
     private val bannerMutex = Mutex()
     private val interMutex = Mutex()
@@ -155,6 +157,7 @@ public class HomeAdsCoordinator(
             val result = fullscreen.show(
                 reserved.reservation.reservationId,
                 FullscreenAdKind.INTERSTITIAL,
+                presentationHostProvider(),
             )
         ) {
             is FullscreenShowResult.Dismissed -> {

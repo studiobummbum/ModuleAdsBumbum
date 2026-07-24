@@ -69,9 +69,18 @@ public sealed interface AdLoadResult {
     public data object Timeout : AdLoadResult
 }
 
+/**
+ * Opaque presentation host supplied only at show time.
+ *
+ * Concrete SDK adapters may unwrap this to an Activity. Core must not hold or
+ * cast it; callers must not register a process-wide Activity singleton.
+ */
+public interface AdPresentationHost
+
 public data class AdShowRequest(
     val showRequestId: String,
     val handle: SdkLoadedAdHandle,
+    val host: AdPresentationHost? = null,
 ) {
     init {
         require(showRequestId.isNotBlank()) { "showRequestId must not be blank" }

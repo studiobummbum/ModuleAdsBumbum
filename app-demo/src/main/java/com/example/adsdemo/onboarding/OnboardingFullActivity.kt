@@ -16,6 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
 import com.example.adsdemo.databinding.ActivityOnboardingFullBinding
+import com.example.adsdemo.sdk.SelectingOnboardingFullNativeBinder
 import com.example.adsmodule.core.FullSessionId
 import com.example.adsmodule.core.OnboardingSessionId
 import com.example.adsmodule.core.onboarding.full.FullActivityPhase
@@ -28,7 +29,11 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
     protected abstract val titleRes: Int
 
     private lateinit var binding: ActivityOnboardingFullBinding
-    private val binder: OnboardingFullNativeBinder = FakeOnboardingFullNativeBinder()
+    private val binder: OnboardingFullNativeBinder by lazy {
+        SelectingOnboardingFullNativeBinder(
+            (application as AdsDemoApplication).graph.sdkBackend,
+        )
+    }
     private var gestureDetector: FullGestureDetector? = null
     private var excludedViews: List<View> = emptyList()
     private var sessionId: OnboardingSessionId? = null

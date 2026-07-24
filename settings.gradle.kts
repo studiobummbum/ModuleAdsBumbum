@@ -29,5 +29,6 @@ include(
     ":ads-core",
     ":ads-sdk-core",
     ":ads-sdk-fake",
+    ":ads-sdk-admob",
     ":ads-debug",
 )

@@ -11,8 +11,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
 import com.example.adsdemo.R
 import com.example.adsdemo.databinding.FragmentOnboardingBinding
-import com.example.adsdemo.language.FakeNormalNativeAdBinder
 import com.example.adsdemo.language.NormalNativeAdBinder
+import com.example.adsdemo.sdk.SelectingNormalNativeAdBinder
 import com.example.adsmodule.core.normal.NormalScreenBindResult
 import com.example.adsmodule.core.normal.NormalScreenUnbindMode
 import com.example.adsmodule.core.storage.OnboardingScreenInstances
@@ -21,7 +21,11 @@ import kotlinx.coroutines.launch
 
 class OnboardingFragment : Fragment() {
     private var binding: FragmentOnboardingBinding? = null
-    private val binder: NormalNativeAdBinder = FakeNormalNativeAdBinder()
+    private val binder: NormalNativeAdBinder by lazy {
+        SelectingNormalNativeAdBinder(
+            (requireContext().applicationContext as AdsDemoApplication).graph.sdkBackend,
+        )
+    }
     private var boundLogicalPage: Int? = null
 
     private val logicalPage: Int

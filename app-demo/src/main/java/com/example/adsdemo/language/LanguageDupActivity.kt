@@ -10,6 +10,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
 import com.example.adsdemo.R
 import com.example.adsdemo.databinding.ActivityLanguageDupBinding
+import com.example.adsdemo.sdk.SelectingNormalNativeAdBinder
 import com.example.adsmodule.core.language.LanguageNavigationEffect
 import com.example.adsmodule.core.language.LanguagePlacement
 import com.example.adsmodule.core.normal.NormalScreenLoadStatus
@@ -17,7 +18,11 @@ import kotlinx.coroutines.launch
 
 class LanguageDupActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLanguageDupBinding
-    private val binder: NormalNativeAdBinder = FakeNormalNativeAdBinder()
+    private val binder: NormalNativeAdBinder by lazy {
+        SelectingNormalNativeAdBinder(
+            (application as AdsDemoApplication).graph.sdkBackend,
+        )
+    }
     private var boundObjectId: String? = null
     private var restoredSessionId: String? = null
     private var restoredLanguageTag: String? = null

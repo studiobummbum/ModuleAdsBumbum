@@ -1,19 +1,25 @@
 package com.example.adsdemo
 
 import android.app.Application
+import android.util.Log
 import com.example.adsdemo.language.AppCompatLocaleApplier
 import com.example.adsdemo.lifecycle.ProcessLifecycleBridge
+import com.example.adsdemo.sdk.DemoSdkBackend
+import com.example.adsdemo.sdk.DemoSdkBackendStore
+import com.example.adsdemo.sdk.PresentationHostRegistry
+import com.example.adsmodule.admob.AdMobAdsSdkModule
+import com.example.adsmodule.admob.AdMobRuntimeMode
 import com.example.adsmodule.core.AudienceType
 import com.example.adsmodule.core.Clock
 import com.example.adsmodule.core.IdGenerator
 import com.example.adsmodule.core.SessionId
+import com.example.adsmodule.core.analytics.CompositeAdsAnalytics
+import com.example.adsmodule.core.analytics.InMemoryAdsAnalytics
+import com.example.adsmodule.core.analytics.NoOpAdsAnalyticsRemoteAdapter
 import com.example.adsmodule.core.config.BundledConfigDataSource
 import com.example.adsmodule.core.config.InMemoryConfigDataSource
 import com.example.adsmodule.core.config.InMemoryLastKnownGoodConfigStore
 import com.example.adsmodule.core.config.OriginalRemoteConfigRepository
-import com.example.adsmodule.core.analytics.CompositeAdsAnalytics
-import com.example.adsmodule.core.analytics.InMemoryAdsAnalytics
-import com.example.adsmodule.core.analytics.NoOpAdsAnalyticsRemoteAdapter
 import com.example.adsmodule.core.debug.AdsDebugApi
 import com.example.adsmodule.core.debug.AdsDebugApiProvider
 import com.example.adsmodule.core.fullscreen.FullscreenShowCoordinator
@@ -42,6 +48,8 @@ import com.example.adsmodule.core.turnback.AdClickTokenStore
 import com.example.adsmodule.core.turnback.AtomicBorrowService
 import com.example.adsmodule.fake.FakeAdsSdkController
 import com.example.adsmodule.fake.FakeAdsSdkModule
+import com.example.adsmodule.sdk.AdPresentationHost
+import com.example.adsmodule.sdk.AdSdkAdapter
 import com.example.adsmodule.sdk.AdSdkAdapterRegistry
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
@@ -59,9 +67,24 @@ class AdsDemoGraph(
     private val clock = Clock { System.currentTimeMillis() }
     private val idGenerator = UuidIdGenerator()
 
+    val sdkBackendStore = DemoSdkBackendStore(application)
+    val sdkBackend: DemoSdkBackend = sdkBackendStore.read()
+    val presentationHosts = PresentationHostRegistry()
+
+    init {
+        Log.i(TAG, "sdkBackend=$sdkBackend")
+    }
+
     val fakeController: FakeAdsSdkController = FakeAdsSdkController()
     private val fakeSdk = FakeAdsSdkModule.create(fakeController)
-    private val adapters = AdSdkAdapterRegistry.create(fakeSdk.adapters)
+    private val admobSdk = if (sdkBackend == DemoSdkBackend.AdMobTest) {
+        AdMobAdsSdkModule.create(application, AdMobRuntimeMode.TEST)
+    } else {
+        null
+    }
+    private val selectedAdapters: List<AdSdkAdapter> =
+        admobSdk?.adapters ?: fakeSdk.adapters
+    private val adapters = AdSdkAdapterRegistry.create(selectedAdapters)
 
     private val currentConfig = InMemoryConfigDataSource()
     private val lastKnownGood = InMemoryLastKnownGoodConfigStore()
@@ -163,6 +186,8 @@ class AdsDemoGraph(
         onboardingAds.onFullPreload = { index -> full.ensurePreloaded(index) }
     }
 
+    private val hostProvider: () -> AdPresentationHost? = { presentationHosts.current() }
+
     val onboardingFinishInter = OnboardingFinishInterCoordinator(
         scope = appScope,
         idGenerator = idGenerator,
@@ -172,6 +197,7 @@ class AdsDemoGraph(
         refillScheduler = refillScheduler,
         snapshotProvider = snapshotProvider,
         audience = audience,
+        presentationHostProvider = hostProvider,
     )
 
     val homeAds = HomeAdsCoordinator(
@@ -183,6 +209,7 @@ class AdsDemoGraph(
         refillScheduler = refillScheduler,
         snapshotProvider = snapshotProvider,
         audience = audience,
+        presentationHostProvider = hostProvider,
     )
 
     val appOpenResume = AppOpenResumeCoordinator(
@@ -196,6 +223,7 @@ class AdsDemoGraph(
         refillScheduler = refillScheduler,
         snapshotProvider = snapshotProvider,
         audience = audience,
+        presentationHostProvider = hostProvider,
     )
 
     val processLifecycleBridge = ProcessLifecycleBridge(appOpenResume)
@@ -227,6 +255,7 @@ class AdsDemoGraph(
         lifecycle = lifecycleCoordinator,
         refillScheduler = refillScheduler,
         audience = audience,
+        presentationHostProvider = hostProvider,
     )
 
     val analyticsStore = InMemoryAdsAnalytics()
@@ -257,6 +286,12 @@ class AdsDemoGraph(
         processLifecycleBridge.start()
         AdsDebugApiProvider.install(debugApi)
         bridgeDebugEvents()
+        val sdkStatus = if (admobSdk != null) {
+            AdMobAdsSdkModule.status
+        } else {
+            FakeAdsSdkModule.status
+        }
+        debugApi.log("sdk", "backend=$sdkBackend status=$sdkStatus")
         appScope.launch {
             configRepository.refresh()
             val snapshot = configRepository.snapshots.value ?: return@launch
@@ -313,5 +348,9 @@ class AdsDemoGraph(
         private val seq = AtomicLong(0L)
         override fun nextId(): String =
             "id-${seq.incrementAndGet()}-${UUID.randomUUID()}"
+    }
+
+    private companion object {
+        const val TAG: String = "AdsDemoGraph"
     }
 }

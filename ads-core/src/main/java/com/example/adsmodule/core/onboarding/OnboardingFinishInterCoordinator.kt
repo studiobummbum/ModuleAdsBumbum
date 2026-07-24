@@ -17,6 +17,7 @@ import com.example.adsmodule.core.storage.AdStorage
 import com.example.adsmodule.core.storage.PutResult
 import com.example.adsmodule.core.storage.ReserveResult
 import com.example.adsmodule.core.storage.StorageSlotKey
+import com.example.adsmodule.sdk.AdPresentationHost
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -39,6 +40,7 @@ public class OnboardingFinishInterCoordinator(
     private val snapshotProvider: AdsConfigSnapshotProvider,
     private val audience: AudienceType,
     private val screenInstanceId: ScreenInstanceId = ScreenInstanceId("onboarding-finish-1"),
+    private val presentationHostProvider: () -> AdPresentationHost? = { null },
 ) {
     private val mutex = Mutex()
     private val finishedOnce = AtomicBoolean(false)
@@ -131,6 +133,7 @@ public class OnboardingFinishInterCoordinator(
             val result = fullscreen.show(
                 reserved.reservation.reservationId,
                 FullscreenAdKind.INTER_ONBOARDING,
+                presentationHostProvider(),
             )
         ) {
             is FullscreenShowResult.Dismissed -> {
