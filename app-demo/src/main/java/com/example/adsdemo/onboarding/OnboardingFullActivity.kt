@@ -90,7 +90,10 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    Log.i(TAG, "System Back BLOCKED/UNRESOLVED on Full$fullIndex")
+                    val id = fullSessionId ?: return
+                    // Signed-off: System Back == CLOSE_X (after X delay; first-wins).
+                    val handled = graph.onboardingFullCoordinator.onSystemBack(id)
+                    Log.i(TAG, "System Back on Full$fullIndex handled=$handled (CLOSE_X policy)")
                 }
             },
         )

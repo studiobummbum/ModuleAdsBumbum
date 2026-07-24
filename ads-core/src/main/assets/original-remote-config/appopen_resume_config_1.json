@@ -5,12 +5,12 @@
     {
       "enable_ad": true,
       "weight": 100,
-      "adunit": "{{APPOPEN_RESUME_0}}"
+      "adunit": "ca-app-pub-3940256097505524/9257395921"
     },
     {
       "enable_ad": true,
       "weight": 90,
-      "adunit": "{{APPOPEN_RESUME_1}}"
+      "adunit": "ca-app-pub-3940256097505524/9257395921"
     }
   ]
 }

@@ -77,8 +77,12 @@ class AdsDemoGraph(
 
     val fakeController: FakeAdsSdkController = FakeAdsSdkController()
     private val fakeSdk = FakeAdsSdkModule.create(fakeController)
-    private val admobSdk = if (sdkBackend == DemoSdkBackend.AdMobTest) {
-        AdMobAdsSdkModule.create(application, AdMobRuntimeMode.TEST)
+    private val admobRuntimeMode: AdMobRuntimeMode = when (sdkBackend) {
+        DemoSdkBackend.AdMob -> AdMobRuntimeMode.PRODUCTION
+        DemoSdkBackend.AdMobTest, DemoSdkBackend.Fake -> AdMobRuntimeMode.TEST
+    }
+    private val admobSdk = if (sdkBackend != DemoSdkBackend.Fake) {
+        AdMobAdsSdkModule.create(application, admobRuntimeMode)
     } else {
         null
     }

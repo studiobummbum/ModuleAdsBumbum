@@ -43,7 +43,14 @@ class BundledConfigDataSourceTest {
                 assertEquals(listOf(0, 1), config.listAds.map { it.sourceListIndex })
                 assertEquals(listOf(100, 90), config.listAds.map { it.weight })
                 assertTrue(result.canonicalJson.contains("\"list_ads\""))
-                assertTrue(result.issues.any { it.code == ConfigIssueCode.PLACEHOLDER_ADUNIT })
+                // Signed-off demo inventory uses Google sample units (not {{placeholders}}).
+                assertTrue(
+                    "expected no PLACEHOLDER_ADUNIT for ${descriptor.key.value}: ${result.issues}",
+                    result.issues.none { it.code == ConfigIssueCode.PLACEHOLDER_ADUNIT },
+                )
+                assertTrue(
+                    config.listAds.all { it.adunit.startsWith("ca-app-pub-3940256097505524/") },
+                )
             }
     }
 

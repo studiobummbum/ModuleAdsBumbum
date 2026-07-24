@@ -147,7 +147,7 @@ class OnboardingFullActivityTest {
     }
 
     @Test
-    fun systemBack_isBlocked() {
+    fun systemBack_beforeCloseDelay_doesNotExit() {
         launchFull(1, target = 3).use { scenario ->
             Thread.sleep(200)
             scenario.onActivity { activity ->
@@ -158,6 +158,26 @@ class OnboardingFullActivityTest {
                 assertFalse(activity.isFinishing)
             }
         }
+    }
+
+    @Test
+    fun systemBack_afterCloseDelay_exitsLikeCloseX() {
+        val app = ApplicationProvider.getApplicationContext<AdsDemoApplication>()
+        val session = OnboardingSessionId("test-onb-back")
+        val fullSession = FullSessionId("test-full-back-${System.nanoTime()}")
+        app.graph.onboardingFullCoordinator.startOrAttach(
+            fullSessionId = fullSession,
+            onboardingSessionId = session,
+            fullIndex = 1,
+            targetLogicalPage = 3,
+        )
+        Thread.sleep(2_200)
+        assertTrue(app.graph.onboardingFullCoordinator.snapshot.value!!.closeVisible)
+        assertTrue(app.graph.onboardingFullCoordinator.onSystemBack(fullSession))
+        val result = app.graph.onboardingFullCoordinator.consumeExitResult(fullSession)
+        assertNotNull(result)
+        assertEquals(FullExitSource.CLOSE_X, result!!.exitSource)
+        assertEquals(3, result.targetLogicalPage)
     }
 
     @Test

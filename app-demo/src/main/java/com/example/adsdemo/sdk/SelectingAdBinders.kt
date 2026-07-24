@@ -17,6 +17,9 @@ import com.example.adsmodule.admob.AdMobNativeLoadedAd
 import com.example.adsmodule.admob.AdMobNativeRenderer
 import com.example.adsmodule.core.storage.StoredAdView
 
+private fun DemoSdkBackend.usesAdMobBinders(): Boolean =
+    this == DemoSdkBackend.AdMobTest || this == DemoSdkBackend.AdMob
+
 class SelectingSplashInlineAdBinder(
     private val backend: DemoSdkBackend,
 ) : SplashInlineAdBinder {
@@ -24,7 +27,7 @@ class SelectingSplashInlineAdBinder(
     private val nativeRenderer = AdMobNativeRenderer()
 
     override fun bindNative(container: ViewGroup, storedAd: StoredAdView) {
-        if (backend != DemoSdkBackend.AdMobTest) {
+        if (!backend.usesAdMobBinders()) {
             fake.bindNative(container, storedAd)
             return
         }
@@ -35,7 +38,7 @@ class SelectingSplashInlineAdBinder(
     }
 
     override fun bindBanner(container: ViewGroup, storedAd: StoredAdView) {
-        if (backend != DemoSdkBackend.AdMobTest) {
+        if (!backend.usesAdMobBinders()) {
             fake.bindBanner(container, storedAd)
             return
         }
@@ -46,7 +49,7 @@ class SelectingSplashInlineAdBinder(
     }
 
     override fun clear(container: ViewGroup) {
-        if (backend == DemoSdkBackend.AdMobTest) {
+        if (backend.usesAdMobBinders()) {
             nativeRenderer.clear(container)
             AdMobBannerBinder.clear(container)
         } else {
@@ -62,7 +65,7 @@ class SelectingNormalNativeAdBinder(
     private val nativeRenderer = AdMobNativeRenderer()
 
     override fun bindNative(container: ViewGroup, storedAd: StoredAdView, title: String) {
-        if (backend != DemoSdkBackend.AdMobTest) {
+        if (!backend.usesAdMobBinders()) {
             fake.bindNative(container, storedAd, title)
             return
         }
@@ -73,7 +76,7 @@ class SelectingNormalNativeAdBinder(
     }
 
     override fun clear(container: ViewGroup) {
-        if (backend == DemoSdkBackend.AdMobTest) {
+        if (backend.usesAdMobBinders()) {
             nativeRenderer.clear(container)
         } else {
             fake.clear(container)
@@ -87,7 +90,7 @@ class SelectingHomeBannerBinder(
     private val fake = FakeHomeBannerBinder()
 
     override fun bindBanner(container: ViewGroup, storedAd: StoredAdView) {
-        if (backend != DemoSdkBackend.AdMobTest) {
+        if (!backend.usesAdMobBinders()) {
             fake.bindBanner(container, storedAd)
             return
         }
@@ -98,7 +101,7 @@ class SelectingHomeBannerBinder(
     }
 
     override fun clear(container: ViewGroup) {
-        if (backend == DemoSdkBackend.AdMobTest) {
+        if (backend.usesAdMobBinders()) {
             AdMobBannerBinder.clear(container)
         } else {
             fake.clear(container)
@@ -117,7 +120,7 @@ class SelectingOnboardingFullNativeBinder(
         storedAd: StoredAdView?,
         title: String,
     ): FakeNativeFullBoundViews {
-        if (backend != DemoSdkBackend.AdMobTest || storedAd == null) {
+        if (!backend.usesAdMobBinders() || storedAd == null) {
             return fake.bind(container, storedAd, title)
         }
         val handle = storedAd.sdkHandle as? AdMobNativeLoadedAd
@@ -136,7 +139,7 @@ class SelectingOnboardingFullNativeBinder(
     }
 
     override fun clear(container: ViewGroup) {
-        if (backend == DemoSdkBackend.AdMobTest) {
+        if (backend.usesAdMobBinders()) {
             nativeRenderer.clear(container)
         } else {
             fake.clear(container)

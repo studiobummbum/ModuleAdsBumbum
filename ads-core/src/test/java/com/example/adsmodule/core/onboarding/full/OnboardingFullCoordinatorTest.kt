@@ -86,6 +86,26 @@ class OnboardingFullCoordinatorTest {
     }
 
     @Test
+    fun systemBack_matchesCloseX_afterDelay() = runTest {
+        val env = Env(this)
+        env.preloadAndReady(1)
+        val fullSession = FullSessionId("full-back")
+        env.coordinator.startOrAttach(
+            fullSessionId = fullSession,
+            onboardingSessionId = OnboardingSessionId("onb-back"),
+            fullIndex = 1,
+            targetLogicalPage = 3,
+        )
+        assertFalse(env.coordinator.onSystemBack(fullSession))
+        advanceTimeBy(2_000L)
+        runCurrent()
+        assertTrue(env.coordinator.onSystemBack(fullSession))
+        val result = env.coordinator.consumeExitResult(fullSession)
+        assertNotNull(result)
+        assertEquals(FullExitSource.CLOSE_X, result!!.exitSource)
+    }
+
+    @Test
     fun autoSkip_startsAfterCloseVisible() = runTest {
         val env = Env(this)
         env.preloadAndReady(1)

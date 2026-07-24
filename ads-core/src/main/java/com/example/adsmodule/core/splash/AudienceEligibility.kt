@@ -3,11 +3,14 @@ package com.example.adsmodule.core.splash
 import com.example.adsmodule.core.AudienceType
 
 /**
- * Audience eligibility for original Remote Config `isOrganic` flags.
+ * Signed-off Organic / Paid / Unknown policy for all ads placements and
+ * auxiliary flags (`splash_skip_ads`, turnback, onboarding page ads, etc.).
  *
- * - PAID: eligible when the config/feature is enabled
- * - ORGANIC: eligible only when `isOrganic == true`
- * - UNKNOWN: fail-closed
+ * Applies uniformly — no per-placement overrides in this module:
+ * - [AudienceType.PAID]: always eligible when the config/feature is otherwise enabled
+ *   (`isOrganic` is ignored for PAID).
+ * - [AudienceType.ORGANIC]: eligible only when Remote Config `isOrganic == true`.
+ * - [AudienceType.UNKNOWN]: fail-closed (never eligible) until attribution resolves.
  */
 public object AudienceEligibility {
     public fun isEligible(

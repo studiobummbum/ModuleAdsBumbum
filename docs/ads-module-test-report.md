@@ -1,6 +1,6 @@
-# Ads Module — Test Report (Phase 16)
+# Ads Module — Test Report (Phase 16 + Phase 18 re-verify)
 
-Date: 2026-07-23  
+Date: 2026-07-24 (Phase 18 gates)  
 Workbook: `docs/Module Ads - Dac ta ky thuat tieng Viet v2.7-full-swipe-close-corrected.xlsx` (sheet **06 Kịch bản kiểm thử**)  
 Skill: `.cursor/skills/android-ads-module-engineering/references/07-test.md`
 
@@ -8,11 +8,12 @@ Skill: `.cursor/skills/android-ads-module-engineering/references/07-test.md`
 
 | Gate | Result |
 | --- | --- |
-| Unit tests (`ads-core`, `ads-sdk-core`, `ads-sdk-fake`, `app-demo` debug + release) | **PASS** |
+| Unit tests (`ads-core`, `ads-sdk-core`, `ads-sdk-fake`, `ads-sdk-admob`, `app-demo` debug + release) | **PASS** |
 | `:app-demo:lintDebug` | **PASS** |
 | `:app-demo:assembleDebug` | **PASS** |
 | `:app-demo:assembleRelease` | **PASS** (no custom signingConfig) |
 | `:app-demo:connectedDebugAndroidTest` | **PASS** (24 tests on `Pixel_7a(AVD) - 17`) |
+| `validate_ads_config.py` on bundled assets | **0 errors**, 28 warnings (placeholder adunits) |
 
 ## Harness
 
@@ -60,13 +61,16 @@ Skill: `.cursor/skills/android-ads-module-engineering/references/07-test.md`
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-.\gradlew.bat :ads-core:testDebugUnitTest :ads-sdk-core:testDebugUnitTest :ads-sdk-fake:testDebugUnitTest :app-demo:testDebugUnitTest :app-demo:testReleaseUnitTest
+.\gradlew.bat :ads-core:testDebugUnitTest :ads-sdk-core:testDebugUnitTest :ads-sdk-fake:testDebugUnitTest :ads-sdk-admob:testDebugUnitTest :app-demo:testDebugUnitTest :app-demo:testReleaseUnitTest
 .\gradlew.bat :app-demo:lintDebug :app-demo:assembleDebug :app-demo:assembleRelease
 .\gradlew.bat :app-demo:connectedDebugAndroidTest
+py -3 .cursor/skills/android-ads-module-engineering/scripts/validate_ads_config.py ads-core/src/main/assets/original-remote-config
 ```
 
 ## Notes
 
 - Phase 16 did **not** add product features; only tests, fixtures, harness, AGP release unit-test enablement, and this report.
+- Phase 18 re-ran all gates, added release docs under `docs/`, and hardened `OnboardingFragmentLifecycleTest.destroyView_releasesBoundAd` to seed READY inventory (no AdMob network dependency).
 - Native Full close-delay / auto-skip **behavior** is asserted in unit tests (`NativeFullSplashControllerTest`). Instrumentation covers layout contract (top-end X, initial invisible) and missing-session finish.
-- System Back policy at Full 1/2 remains an open decision (demo intercepts + logs); not treated as a regression here.
+- System Back policy at Full 1/2 remains an open decision (demo intercepts + logs); see [open-decisions.md](open-decisions.md).
+- **Not production-ready** while open decisions (weights, ad units, audience, System Back) and demo Fake/AdMob Test wiring remain.

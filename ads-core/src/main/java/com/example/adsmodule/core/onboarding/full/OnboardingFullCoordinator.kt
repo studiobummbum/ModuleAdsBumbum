@@ -123,6 +123,12 @@ public class OnboardingFullCoordinator(
         return finishAndContinueOnce(controller, FullExitSource.CLOSE_X)
     }
 
+    /**
+     * System Back policy (signed-off): same as [onCloseClicked] / [FullExitSource.CLOSE_X].
+     * Ignored until close-delay elapses; then first-wins with swipe / X / auto-skip.
+     */
+    public fun onSystemBack(fullSessionId: FullSessionId): Boolean = onCloseClicked(fullSessionId)
+
     public fun onSwipeForward(fullSessionId: FullSessionId): Boolean {
         val controller = active.get() ?: return false
         if (controller.fullSessionId != fullSessionId) return false

@@ -7,12 +7,12 @@
     {
       "enable_ad": true,
       "weight": 100,
-      "adunit": "{{BANNER_UFO_0}}"
+      "adunit": "ca-app-pub-3940256097505524/6300978111"
     },
     {
       "enable_ad": true,
       "weight": 90,
-      "adunit": "{{BANNER_UFO_1}}"
+      "adunit": "ca-app-pub-3940256097505524/6300978111"
     }
   ]
 }

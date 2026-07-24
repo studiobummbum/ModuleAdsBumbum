@@ -2,6 +2,7 @@ package com.example.adsdemo.sdk
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.adsdemo.BuildConfig
 
 class DemoSdkBackendStore(
     context: Context,
@@ -9,13 +10,18 @@ class DemoSdkBackendStore(
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    fun read(): DemoSdkBackend =
-        DemoSdkBackend.fromStorage(
-            prefs.getString(KEY_BACKEND, DemoSdkBackend.AdMobTest.name),
+    fun read(): DemoSdkBackend {
+        val raw = prefs.getString(KEY_BACKEND, null)
+        val stored = raw?.let(DemoSdkBackend::fromStorage)
+        return DemoSdkBackendPolicy.effective(
+            debuggable = BuildConfig.DEBUG,
+            stored = stored,
         )
+    }
 
     fun write(backend: DemoSdkBackend) {
-        prefs.edit().putString(KEY_BACKEND, backend.name).apply()
+        val sanitized = DemoSdkBackendPolicy.sanitizeWrite(BuildConfig.DEBUG, backend) ?: return
+        prefs.edit().putString(KEY_BACKEND, sanitized.name).apply()
     }
 
     companion object {
