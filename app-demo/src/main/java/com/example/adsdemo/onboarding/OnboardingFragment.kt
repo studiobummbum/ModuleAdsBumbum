@@ -51,7 +51,9 @@ class OnboardingFragment : Fragment() {
             R.string.onboarding_page_body,
             OnboardingScreenInstances.page(page).value,
         )
-        renderDots(binding, page)
+        val activePages = (activity as? OnboardingActivity)?.activePages().orEmpty()
+            .ifEmpty { listOf(1, 2, 3, 4) }
+        renderDots(binding, page, activePages)
         binding.onboardingNextLink.setOnClickListener {
             (activity as? OnboardingActivity)?.forwardFromFragment()
         }
@@ -82,11 +84,16 @@ class OnboardingFragment : Fragment() {
         }
     }
 
-    private fun renderDots(binding: FragmentOnboardingBinding, activePage: Int) {
+    private fun renderDots(
+        binding: FragmentOnboardingBinding,
+        activePage: Int,
+        activePages: List<Int>,
+    ) {
         binding.onboardingDots.removeAllViews()
         val size = resources.getDimensionPixelSize(R.dimen.onboarding_dot_size)
         val margin = resources.getDimensionPixelSize(R.dimen.onboarding_dot_margin)
-        for (index in 1..4) {
+        val total = activePages.size.coerceAtLeast(1)
+        activePages.forEachIndexed { index, logicalPage ->
             val dot = ImageView(requireContext()).apply {
                 layoutParams = ViewGroup.MarginLayoutParams(size, size).also {
                     it.marginEnd = margin
@@ -94,14 +101,18 @@ class OnboardingFragment : Fragment() {
                 setImageDrawable(
                     ContextCompat.getDrawable(
                         requireContext(),
-                        if (index == activePage) {
+                        if (logicalPage == activePage) {
                             R.drawable.bg_onboard_dot_active
                         } else {
                             R.drawable.bg_onboard_dot_inactive
                         },
                     ),
                 )
-                contentDescription = getString(R.string.onboarding_page_indicator, index, 4)
+                contentDescription = getString(
+                    R.string.onboarding_page_indicator,
+                    index + 1,
+                    total,
+                )
             }
             binding.onboardingDots.addView(dot)
         }

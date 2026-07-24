@@ -9,6 +9,7 @@ import com.example.adsdemo.onboarding.OnboardingFullNativeBinder
 import com.example.adsdemo.splash.SplashInlineAdBinder
 import com.example.adsmodule.admob.AdMobBannerBinder
 import com.example.adsmodule.admob.AdMobBannerLoadedAd
+import com.example.adsmodule.admob.AdMobNativeLayoutStyle
 import com.example.adsmodule.admob.AdMobNativeLoadedAd
 import com.example.adsmodule.admob.AdMobNativeRenderer
 import com.example.adsmodule.core.storage.StoredAdView
@@ -18,7 +19,9 @@ class AdMobSplashInlineAdBinder : SplashInlineAdBinder {
 
     override fun bindNative(container: ViewGroup, storedAd: StoredAdView) {
         val handle = storedAd.sdkHandle as? AdMobNativeLoadedAd
-        if (handle == null || !nativeRenderer.bind(container, handle)) {
+        if (handle == null ||
+            !nativeRenderer.bind(container, handle, AdMobNativeLayoutStyle.MEDIUM_BOTTOM)
+        ) {
             clear(container)
         }
     }
@@ -41,7 +44,9 @@ class AdMobNormalNativeAdBinder : NormalNativeAdBinder {
 
     override fun bindNative(container: ViewGroup, storedAd: StoredAdView, title: String) {
         val handle = storedAd.sdkHandle as? AdMobNativeLoadedAd
-        if (handle == null || !nativeRenderer.bind(container, handle)) {
+        if (handle == null ||
+            !nativeRenderer.bind(container, handle, AdMobNativeLayoutStyle.MEDIUM_BOTTOM)
+        ) {
             clear(container)
         }
     }
@@ -83,7 +88,7 @@ class AdMobOnboardingFullNativeBinder : OnboardingFullNativeBinder {
             )
         }
         val handle = storedAd.sdkHandle as? AdMobNativeLoadedAd
-        if (handle == null || !nativeRenderer.bind(container, handle)) {
+        if (handle == null || !nativeRenderer.bind(container, handle, AdMobNativeLayoutStyle.FULL)) {
             clear(container)
             return NativeFullBoundViews(
                 root = container,
@@ -95,11 +100,13 @@ class AdMobOnboardingFullNativeBinder : OnboardingFullNativeBinder {
         val root = container.getChildAt(0) ?: container
         val media = root.findViewById<View>(com.example.adsmodule.admob.R.id.admob_native_media)
         val cta = root.findViewById<View>(com.example.adsmodule.admob.R.id.admob_native_cta)
+        val headline = root.findViewById<View>(com.example.adsmodule.admob.R.id.admob_native_headline)
+        val body = root.findViewById<View>(com.example.adsmodule.admob.R.id.admob_native_body)
         return NativeFullBoundViews(
             root = root,
             media = media ?: root,
             cta = cta ?: root,
-            clickableAssets = listOfNotNull(media, cta),
+            clickableAssets = listOfNotNull(media, cta, headline, body),
         )
     }
 

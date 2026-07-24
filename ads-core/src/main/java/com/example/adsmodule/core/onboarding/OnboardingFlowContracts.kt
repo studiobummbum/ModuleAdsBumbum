@@ -175,6 +175,12 @@ public sealed class OnboardingBackwardResult {
         val logicalPage: Int,
     ) : OnboardingBackwardResult()
 
+    public data class LaunchFull(
+        val effect: OnboardingNavigationEffect,
+        val fullSessionId: FullSessionId,
+        val targetLogicalPage: Int,
+    ) : OnboardingBackwardResult()
+
     public data class Ignored(
         val reason: String,
     ) : OnboardingBackwardResult()

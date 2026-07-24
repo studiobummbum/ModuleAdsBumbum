@@ -84,6 +84,7 @@ public class SplashFlowCoordinator(
     private var snapshotConfig: AdsConfigSnapshot? = null
     private var primaryShowRequestId: ShowRequestId? = null
     private var pendingNativeFullLaunch: SplashNativeFullLaunch? = null
+    private var pendingPrimaryShow: PendingPrimaryShow? = null
 
     private val mutableSnapshot = MutableStateFlow<SplashFlowSnapshot?>(null)
     private val mutableEvents = MutableSharedFlow<SplashFlowEvent>(extraBufferCapacity = 32)
@@ -118,6 +119,7 @@ public class SplashFlowCoordinator(
         primaryAdvanceGate.set(false)
         effectClaimed.clear()
         pendingNativeFullLaunch = null
+        pendingPrimaryShow = null
         primaryShowRequestId = null
 
         val sessionId = SplashSessionId(idGenerator.nextId())
@@ -177,6 +179,26 @@ public class SplashFlowCoordinator(
         emitStage(sessionId, SplashStage.LANGUAGE_LOADING)
     }
 
+    /**
+     * UI confirms the pre-show dialog and asks the coordinator to present the primary fullscreen ad.
+     * No-op unless [SplashStage.PRIMARY_PRESHOW] is active for [sessionId].
+     */
+    public fun confirmPrimaryShow(sessionId: SplashSessionId): Boolean {
+        val pending = pendingPrimaryShow ?: return false
+        if (pending.sessionId != sessionId) return false
+        val current = mutableSnapshot.value ?: return false
+        if (current.sessionId != sessionId) return false
+        if (current.stage != SplashStage.PRIMARY_PRESHOW) return false
+        pendingPrimaryShow = null
+        executePrimaryShow(
+            sessionId = pending.sessionId,
+            screenInstanceId = pending.screenInstanceId,
+            primary = pending.primary,
+            kind = pending.kind,
+        )
+        return true
+    }
+
     public fun cancelNow() {
         cancelInternal(keepSnapshot = true)
         update {
@@ -211,13 +233,17 @@ public class SplashFlowCoordinator(
             splashScreen.showLfo &&
             splashScreen.showPosition.equals("splash", ignoreCase = true)
 
+        // Arm timeout/progress as soon as LOADING starts — not after awaitAll loads.
+        if (showPrimaryLfo) {
+            armScreenTimeout(sessionId, splashScreen?.timeoutScreenMillis ?: 30_000L)
+        }
+
         activateRefillSlots(screenInstanceId)
         loadAllPlacements(sessionId, screenInstanceId, configSnapshot)
 
         if (activeSessionId != sessionId) return
 
         if (showPrimaryLfo) {
-            armScreenTimeout(sessionId, splashScreen?.timeoutScreenMillis ?: 30_000L)
             val primary = mutableSnapshot.value?.placements?.get(SplashPlacement.INTER_SPLASH)
             when {
                 primary?.status == SplashLoadStatus.READY &&
@@ -491,6 +517,34 @@ public class SplashFlowCoordinator(
                 return
             }
         }
+        pendingPrimaryShow = PendingPrimaryShow(
+            sessionId = sessionId,
+            screenInstanceId = screenInstanceId,
+            primary = primary,
+            kind = kind,
+        )
+        update {
+            it.copy(
+                stage = SplashStage.PRIMARY_PRESHOW,
+                primaryKind = kind,
+                primaryFormat = stored.sourceType,
+                primaryObjectId = stored.objectId,
+                debugMessage = "awaiting_primary_show_confirm",
+            )
+        }
+        emitStage(sessionId, SplashStage.PRIMARY_PRESHOW)
+    }
+
+    private fun executePrimaryShow(
+        sessionId: SplashSessionId,
+        screenInstanceId: ScreenInstanceId,
+        primary: SplashPlacementState,
+        kind: FullscreenAdKind,
+    ) {
+        val stored = primary.storedAd ?: run {
+            advanceToNativeFull(sessionId, "primary stored missing", null, false)
+            return
+        }
         primaryShowJob?.cancel()
         primaryShowJob = scope.launch {
             val reserved = storage.reserveNormal(INTER_SPLASH_KEY, screenInstanceId)
@@ -648,6 +702,7 @@ public class SplashFlowCoordinator(
         skipJob = null
         screenTimeoutJob?.cancel()
         screenTimeoutJob = null
+        pendingPrimaryShow = null
 
         val current = mutableSnapshot.value ?: return
         if (current.sessionId != sessionId) return
@@ -754,6 +809,13 @@ public class SplashFlowCoordinator(
     }
 
     private fun armScreenTimeout(sessionId: SplashSessionId, timeoutMillis: Long) {
+        val deadline = clock.nowMillis() + timeoutMillis
+        update {
+            it.copy(
+                screenTimeoutTotalMillis = timeoutMillis,
+                screenTimeoutDeadlineMillis = deadline,
+            )
+        }
         screenTimeoutJob?.cancel()
         screenTimeoutJob = scope.launch {
             delay(timeoutMillis)
@@ -768,6 +830,7 @@ public class SplashFlowCoordinator(
             ) {
                 return@launch
             }
+            pendingPrimaryShow = null
             advanceToNativeFull(
                 sessionId = sessionId,
                 reason = "timeout_screen",
@@ -793,12 +856,20 @@ public class SplashFlowCoordinator(
         skipJob = null
         screenTimeoutJob = null
         primaryShowJob = null
+        pendingPrimaryShow = null
         activeSessionId?.let { nativeFullController.cancel(it) }
         activeSessionId = null
         if (!keepSnapshot) {
             mutableSnapshot.value = null
         }
     }
+
+    private data class PendingPrimaryShow(
+        val sessionId: SplashSessionId,
+        val screenInstanceId: ScreenInstanceId,
+        val primary: SplashPlacementState,
+        val kind: FullscreenAdKind,
+    )
 
     private fun setPlacement(placement: SplashPlacement, state: SplashPlacementState) {
         update { snap ->

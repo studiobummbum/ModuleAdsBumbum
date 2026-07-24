@@ -127,7 +127,9 @@ class OnboardingFullActivityTest {
         launchFull(1, target = 3).use { scenario ->
             Thread.sleep(400)
             scenario.onActivity { activity ->
-                val media = activity.findViewById<View>(R.id.fake_native_full_media)
+                val media = activity.findViewById<View>(
+                    com.example.adsmodule.admob.R.id.admob_native_media,
+                ) ?: activity.findViewById(R.id.onboarding_full_ad_container)
                 val loc = IntArray(2)
                 media.getLocationOnScreen(loc)
                 dispatchForwardSwipe(

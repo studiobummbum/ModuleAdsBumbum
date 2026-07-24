@@ -62,12 +62,16 @@ public class LanguageFlowCoordinator(
 
     /**
      * Creates or reattaches the Language session and starts the Language Loading timer.
+     *
+     * Re-entering Language Loading after the flow already advanced (or after the
+     * loading effect was claimed) forces a fresh session so the UI cannot stick.
      */
     public fun startOrAttach(
         configSnapshot: AdsConfigSnapshot,
         existingSessionId: LanguageSessionId? = null,
     ): LanguageSessionId {
         lastConfigSnapshot.set(configSnapshot)
+        maybeResetForFreshLoadingEntry(existingSessionId)
         val sessionId = attach(configSnapshot, existingSessionId)
         if (loadingTimerStarted.compareAndSet(false, true)) {
             val now = clock.nowMillis()
@@ -100,9 +104,53 @@ public class LanguageFlowCoordinator(
                     LanguageConfigKeys.LOADING,
                     snap.loadingScreenId,
                 )
+                if (snap.loadingTimer.completed &&
+                    snap.pendingEffect == null &&
+                    LanguageNavigationEffect.OPEN_LANGUAGE_SELECT !in claimedEffects.get()
+                ) {
+                    requestEffect(sessionId, LanguageNavigationEffect.OPEN_LANGUAGE_SELECT)
+                }
             }
         }
         return sessionId
+    }
+
+    private fun maybeResetForFreshLoadingEntry(existingSessionId: LanguageSessionId?) {
+        val current = mutableSnapshot.value ?: return
+        if (existingSessionId != null) {
+            // Recreation / same-session reattach — keep state unless session id differs.
+            if (existingSessionId != current.sessionId) {
+                clearSessionState()
+            }
+            return
+        }
+        // Fresh Language Loading entry without a saved session (e.g. reopen app).
+        val advancedPastLoading =
+            current.stage != LanguageStage.BOOTSTRAP &&
+                current.stage != LanguageStage.LANGUAGE_LOADING
+        val loadingEffectAlreadyClaimed =
+            current.stage == LanguageStage.LANGUAGE_LOADING &&
+                LanguageNavigationEffect.OPEN_LANGUAGE_SELECT in claimedEffects.get()
+        if (advancedPastLoading || loadingEffectAlreadyClaimed) {
+            clearSessionState()
+        }
+    }
+
+    private fun clearSessionState() {
+        loadingTimerJob.getAndSet(null)?.cancel()
+        applyTimerJob.getAndSet(null)?.cancel()
+        boundAds.get().values.forEach { session ->
+            runCatching { normalAds.unbind(session, NormalScreenUnbindMode.RELEASE) }
+        }
+        boundAds.set(emptyMap())
+        claimedEffects.set(emptySet())
+        loadingTimerStarted.set(false)
+        applyStarted.set(false)
+        onboardingPreloadStarted.set(false)
+        languagePreloadStarted.set(false)
+        selectNavigated.set(false)
+        dupNavigated.set(false)
+        mutableSnapshot.value = null
     }
 
     /**
@@ -259,7 +307,7 @@ public class LanguageFlowCoordinator(
     public fun onApplyLanguageOpened(sessionId: LanguageSessionId) {
         val snap = mutableSnapshot.value ?: return
         if (snap.sessionId != sessionId) return
-        unbindPlacement(LanguagePlacement.DUP, NormalScreenUnbindMode.CONSUME)
+        // Keep DUP native bound so Apply can show the same bottom ad + Continue CTA.
         val language = snap.selectedLanguage ?: return
         publish {
             it.copy(
@@ -293,6 +341,7 @@ public class LanguageFlowCoordinator(
     public fun onOnboardingOpened(sessionId: LanguageSessionId) {
         val snap = mutableSnapshot.value ?: return
         if (snap.sessionId != sessionId) return
+        unbindPlacement(LanguagePlacement.DUP, NormalScreenUnbindMode.CONSUME)
         publish {
             it.copy(
                 stage = LanguageStage.ONBOARDING,

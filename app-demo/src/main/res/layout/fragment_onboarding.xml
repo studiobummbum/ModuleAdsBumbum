@@ -85,5 +85,6 @@
         android:id="@+id/onboarding_native_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="48dp" />
+        android:background="@color/demo_surface_white"
+        android:minHeight="132dp" />
 </LinearLayout>

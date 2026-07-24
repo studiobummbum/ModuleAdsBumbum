@@ -71,7 +71,7 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
             null
         }
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.onboardingFullClose) { view, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(binding.onboardingFullTopChrome) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val lp = view.layoutParams as MarginLayoutParams
             lp.topMargin = bars.top + dp(8)
@@ -79,6 +79,7 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
             view.layoutParams = lp
             insets
         }
+        ViewCompat.requestApplyInsets(binding.onboardingFullTopChrome)
 
         binding.onboardingFullClose.setOnClickListener {
             val id = fullSessionId ?: return@setOnClickListener

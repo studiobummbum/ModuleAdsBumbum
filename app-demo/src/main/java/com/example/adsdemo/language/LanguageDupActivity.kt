@@ -43,8 +43,22 @@ class LanguageDupActivity : AppCompatActivity() {
         restoredSessionId = savedInstanceState?.getString(KEY_SESSION_ID)
         restoredLanguageTag = savedInstanceState?.getString(KEY_LANGUAGE_TAG)
         super.onCreate(savedInstanceState)
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
         binding = ActivityLanguageDupBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Paint UI from Intent immediately so the hop feels like the same screen.
+        val intentTag = intent.getStringExtra(EXTRA_LANGUAGE_TAG) ?: restoredLanguageTag
+        val intentLanguage = intentTag?.let { tag -> viewModel.languages.find { it.tag == tag } }
+        binding.languageDupSelected.text =
+            intentLanguage?.displayName ?: getString(R.string.language_default)
+        binding.languageDupNext.isEnabled = intentLanguage != null
+        binding.languageDupNext.alpha = if (intentLanguage != null) 1f else 0.4f
+        if (!renderedLanguages) {
+            renderLanguages(intentLanguage?.tag)
+            renderedLanguages = true
+        }
 
         binding.languageDupNext.setOnClickListener {
             viewModel.onLanguageDupNext()
@@ -59,12 +73,8 @@ class LanguageDupActivity : AppCompatActivity() {
                     binding.languageDupSelected.text =
                         selected?.displayName ?: getString(R.string.language_default)
                     binding.languageDupNext.isEnabled = selected != null
-                    if (!renderedLanguages) {
-                        renderLanguages(selected?.tag)
-                        renderedLanguages = true
-                    } else {
-                        updateSelectionMarks(selected?.tag)
-                    }
+                    binding.languageDupNext.alpha = if (selected != null) 1f else 0.4f
+                    updateSelectionMarks(selected?.tag)
                     val placement = snap.placements.dup
                     val ad = viewModel.boundAd(LanguagePlacement.DUP)?.session?.storedAd
                         ?: placement?.storedAd

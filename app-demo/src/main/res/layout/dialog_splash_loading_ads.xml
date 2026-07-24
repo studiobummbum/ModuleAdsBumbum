@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:gravity="center_horizontal"
+    android:minWidth="220dp"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingVertical="28dp">
+
+    <ProgressBar
+        android:id="@+id/splash_loading_spinner"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:indeterminate="true" />
+
+    <TextView
+        android:id="@+id/splash_loading_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center"
+        android:text="@string/splash_loading_and_show_ads"
+        android:textColor="@color/demo_text_primary"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+</LinearLayout>

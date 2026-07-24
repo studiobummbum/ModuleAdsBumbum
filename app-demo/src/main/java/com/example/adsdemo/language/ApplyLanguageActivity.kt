@@ -2,6 +2,7 @@ package com.example.adsdemo.language
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
@@ -11,12 +12,17 @@ import com.example.adsdemo.AdsDemoApplication
 import com.example.adsdemo.R
 import com.example.adsdemo.databinding.ActivityApplyLanguageBinding
 import com.example.adsdemo.onboarding.OnboardingActivity
+import com.example.adsdemo.sdk.AdMobNormalNativeAdBinder
 import com.example.adsmodule.core.language.LanguageNavigationEffect
+import com.example.adsmodule.core.language.LanguagePlacement
 import com.example.adsmodule.core.language.LocaleApplyStatus
+import com.example.adsmodule.core.normal.NormalScreenLoadStatus
 import kotlinx.coroutines.launch
 
 class ApplyLanguageActivity : AppCompatActivity() {
     private lateinit var binding: ActivityApplyLanguageBinding
+    private val binder: NormalNativeAdBinder by lazy { AdMobNormalNativeAdBinder() }
+    private var boundObjectId: String? = null
     private var restoredSessionId: String? = null
     private var restoredLanguageTag: String? = null
 
@@ -42,24 +48,32 @@ class ApplyLanguageActivity : AppCompatActivity() {
                 viewModel.snapshot.collect { snap ->
                     if (snap == null) return@collect
                     val selected = snap.selectedLanguage
-                    binding.applyLanguageSelected.text =
-                        getString(
-                            R.string.apply_language_selected,
-                            selected?.displayName ?: selected?.tag.orEmpty(),
-                        )
-                    val remaining = snap.applyTimer.remainingMillis
-                    val statusText = when (snap.localeStatus) {
-                        LocaleApplyStatus.APPLYING -> getString(R.string.apply_language_status)
-                        LocaleApplyStatus.SUCCEEDED -> getString(R.string.apply_language_status)
+                    val displayName = selected?.displayName ?: selected?.tag.orEmpty()
+                    binding.applyLanguageSelected.text = displayName
+                    binding.applyLanguageStatus.text = when (snap.localeStatus) {
                         LocaleApplyStatus.FAILED_FALLBACK ->
                             "Locale fallback: ${snap.localeMessage.orEmpty()}"
-                        LocaleApplyStatus.IDLE -> getString(R.string.apply_language_status)
+                        else -> getString(R.string.apply_language_status_named, displayName)
                     }
-                    binding.applyLanguageStatus.text = buildString {
-                        append(statusText)
-                        if (remaining != null) {
-                            append('\n')
-                            append("${remaining}ms")
+                    val placement = snap.placements.dup
+                    val ad = viewModel.boundAd(LanguagePlacement.DUP)?.session?.storedAd
+                        ?: placement?.storedAd
+                    if (
+                        ad != null &&
+                        (
+                            placement?.status == NormalScreenLoadStatus.BOUND ||
+                                placement?.status == NormalScreenLoadStatus.READY
+                            )
+                    ) {
+                        val objectId = ad.objectId.value
+                        if (boundObjectId != objectId) {
+                            binder.bindNative(
+                                binding.nativeApplyLanguageContainer,
+                                ad,
+                                title = "Apply Language",
+                            )
+                            binding.nativeApplyLanguageContainer.visibility = View.VISIBLE
+                            boundObjectId = objectId
                         }
                     }
                     if (snap.pendingEffect == LanguageNavigationEffect.OPEN_ONBOARDING) {

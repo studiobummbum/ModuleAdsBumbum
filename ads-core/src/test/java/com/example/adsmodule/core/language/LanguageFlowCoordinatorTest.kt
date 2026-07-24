@@ -56,6 +56,28 @@ class LanguageFlowCoordinatorTest {
     }
 
     @Test
+    fun startOrAttachWithoutSession_resetsAfterFlowAdvanced() = runTest {
+        val env = Env(this)
+        val first = env.coordinator.startOrAttach(env.snapshot())
+        advanceTimeBy(2_000L)
+        runCurrent()
+        env.coordinator.claimEffect(first, LanguageNavigationEffect.OPEN_LANGUAGE_SELECT)
+        env.coordinator.onLanguageSelectOpened(first)
+        assertEquals(LanguageStage.LANGUAGE_SELECT, env.coordinator.snapshot.value!!.stage)
+
+        val second = env.coordinator.startOrAttach(env.snapshot(), existingSessionId = null)
+        assertTrue(second != first)
+        assertEquals(LanguageStage.LANGUAGE_LOADING, env.coordinator.snapshot.value!!.stage)
+        assertFalse(env.coordinator.snapshot.value!!.loadingTimer.completed)
+        advanceTimeBy(2_000L)
+        runCurrent()
+        assertEquals(
+            LanguageNavigationEffect.OPEN_LANGUAGE_SELECT,
+            env.coordinator.snapshot.value!!.pendingEffect,
+        )
+    }
+
+    @Test
     fun loadingTimer_opensSelectAt2000ms_evenIfAdsFail() = runTest {
         val env = Env(this)
         env.fail(LanguageConfigKeys.LOADING, 0, "load-100")

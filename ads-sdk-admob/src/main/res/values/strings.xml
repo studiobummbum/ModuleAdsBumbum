@@ -2,4 +2,5 @@
 <resources>
     <string name="admob_native_icon">Ad icon</string>
     <string name="admob_native_attribution">Ad</string>
+    <string name="admob_native_continue">Continue</string>
 </resources>

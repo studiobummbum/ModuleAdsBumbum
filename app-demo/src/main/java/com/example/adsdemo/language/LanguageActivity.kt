@@ -8,6 +8,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityOptionsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -29,6 +30,7 @@ class LanguageActivity : AppCompatActivity() {
     private var restoredLanguageTag: String? = null
     private var renderedLanguages: Boolean = false
     private var pendingSelection: DemoLanguage? = null
+    private var navigatingToDup: Boolean = false
 
     private val viewModel: LanguageFlowViewModel by viewModels {
         LanguageFlowViewModel.factory(
@@ -43,6 +45,9 @@ class LanguageActivity : AppCompatActivity() {
         restoredSessionId = savedInstanceState?.getString(KEY_SESSION_ID)
         restoredLanguageTag = savedInstanceState?.getString(KEY_LANGUAGE_TAG)
         super.onCreate(savedInstanceState)
+        // Kill any residual enter/exit animation for this hop.
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
         binding = ActivityLanguageBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -50,9 +55,9 @@ class LanguageActivity : AppCompatActivity() {
             pendingSelection = viewModel.languages.find { it.tag == restoredLanguageTag }
         }
 
-        binding.languageContinue.setOnClickListener {
-            val selected = pendingSelection ?: return@setOnClickListener
-            viewModel.selectLanguage(selected)
+        binding.languageSystemRow.setOnClickListener {
+            val defaultLanguage = viewModel.languages.firstOrNull() ?: return@setOnClickListener
+            navigateWithSelection(defaultLanguage)
         }
 
         lifecycleScope.launch {
@@ -66,7 +71,6 @@ class LanguageActivity : AppCompatActivity() {
                         }
                         renderLanguages(pendingSelection)
                         renderedLanguages = true
-                        binding.languageContinue.isEnabled = pendingSelection != null
                     } else {
                         updateSelectionMarks(pendingSelection?.tag)
                     }
@@ -91,22 +95,45 @@ class LanguageActivity : AppCompatActivity() {
                             boundObjectId = objectId
                         }
                     }
-                    if (snap.pendingEffect == LanguageNavigationEffect.OPEN_LANGUAGE_DUP) {
-                        if (viewModel.claimEffect(LanguageNavigationEffect.OPEN_LANGUAGE_DUP)) {
-                            startActivity(
-                                Intent(this@LanguageActivity, LanguageDupActivity::class.java)
-                                    .putExtra(LanguageDupActivity.EXTRA_SESSION_ID, snap.sessionId.value)
-                                    .putExtra(
-                                        LanguageDupActivity.EXTRA_LANGUAGE_TAG,
-                                        snap.selectedLanguage?.tag,
-                                    ),
-                            )
-                            finish()
-                        }
+                    // Fallback path if effect arrives via flow (e.g. recreation).
+                    if (!navigatingToDup &&
+                        snap.pendingEffect == LanguageNavigationEffect.OPEN_LANGUAGE_DUP
+                    ) {
+                        openDupImmediate(
+                            sessionId = snap.sessionId.value,
+                            languageTag = snap.selectedLanguage?.tag,
+                        )
                     }
                 }
             }
         }
+    }
+
+    private fun navigateWithSelection(language: DemoLanguage) {
+        if (navigatingToDup) return
+        pendingSelection = language
+        updateSelectionMarks(language.tag)
+        if (!viewModel.selectLanguage(language)) return
+        val sessionId = viewModel.sessionIdOrNull()?.value ?: return
+        // Navigate on the click path (no Flow round-trip) for zero perceived hitch.
+        openDupImmediate(sessionId = sessionId, languageTag = language.tag)
+    }
+
+    private fun openDupImmediate(sessionId: String, languageTag: String?) {
+        if (navigatingToDup || isFinishing) return
+        if (!viewModel.claimEffect(LanguageNavigationEffect.OPEN_LANGUAGE_DUP)) return
+        navigatingToDup = true
+        val options = ActivityOptionsCompat.makeCustomAnimation(this, 0, 0)
+        startActivity(
+            Intent(this, LanguageDupActivity::class.java)
+                .putExtra(LanguageDupActivity.EXTRA_SESSION_ID, sessionId)
+                .putExtra(LanguageDupActivity.EXTRA_LANGUAGE_TAG, languageTag)
+                .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+            options.toBundle(),
+        )
+        finish()
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
     }
 
     private fun renderLanguages(selected: DemoLanguage?) {
@@ -125,9 +152,7 @@ class LanguageActivity : AppCompatActivity() {
             )
             row.tag = language.tag
             row.setOnClickListener {
-                pendingSelection = language
-                updateSelectionMarks(language.tag)
-                binding.languageContinue.isEnabled = true
+                navigateWithSelection(language)
             }
             binding.languageList.addView(row)
         }

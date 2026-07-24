@@ -9,4 +9,13 @@
         <item name="android:windowBackground">@color/demo_bg</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
+
+    <style name="Theme.ModuleAdsExample.NoAnimation" parent="Theme.ModuleAdsExample">
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowBackground">@color/demo_bg</item>
+        <item name="android:windowEnterAnimation">@null</item>
+        <item name="android:windowExitAnimation">@null</item>
+    </style>
 </resources>

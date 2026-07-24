@@ -53,14 +53,7 @@ class LanguageLoadingActivity : AppCompatActivity() {
                         renderSkeletonList()
                         renderedSkeleton = true
                     }
-                    val remaining = snap.loadingTimer.remainingMillis
-                    binding.languageLoadingStatus.text = buildString {
-                        append(getString(R.string.language_loading_label))
-                        if (remaining != null) {
-                            append(" · ")
-                            append("${remaining}ms")
-                        }
-                    }
+                    binding.languageLoadingStatus.text = getString(R.string.language_loading_label)
                     val placement = snap.placements.loading
                     val ad = viewModel.boundAd(LanguagePlacement.LOADING)?.session?.storedAd
                         ?: placement?.storedAd
@@ -101,10 +94,14 @@ class LanguageLoadingActivity : AppCompatActivity() {
         val inflater = LayoutInflater.from(this)
         viewModel.languages.forEach { language ->
             val row = inflater.inflate(R.layout.item_language, binding.languageLoadingList, false)
-            row.findViewById<TextView>(R.id.language_name).text = language.displayName
+            val name = row.findViewById<TextView>(R.id.language_name)
+            name.text = language.displayName
+            name.setTextColor(getColor(R.color.demo_text_secondary))
             row.findViewById<ImageView>(R.id.language_selected_mark)
                 .setImageResource(R.drawable.ic_radio_unchecked)
+            row.alpha = 0.45f
             row.isClickable = false
+            row.isEnabled = false
             row.isFocusable = false
             binding.languageLoadingList.addView(row)
         }

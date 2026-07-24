@@ -16,7 +16,8 @@ import kotlinx.coroutines.flow.update
 /**
  * Pure onboarding navigation state machine.
  *
- * Forward swipe and Next share [requestForward]. Backward never launches Full.
+ * Forward swipe and Next share [requestForward]. Backward mirrors Full gates:
+ * leaving the page after Full1/Full2 re-opens that Full before the previous pager.
  * Full1 is tied to logical page 2; Full2 to logical page 3. Disabled pages
  * skip their Full boundary and advance to the next active logical page.
  */
@@ -109,47 +110,21 @@ public class OnboardingBoundaryCoordinator(
         val next = nextActiveAfter(snap.activePages, current)
 
         if (current == 2 && !snap.full1Completed) {
-            val fullSessionId = FullSessionId(idGenerator.nextId())
-            val pending = OnboardingPendingFull(
+            return beginLaunchFull(
+                sessionId = sessionId,
                 fullIndex = 1,
-                fullSessionId = fullSessionId,
-                targetLogicalPage = next,
-            )
-            publish {
-                it.copy(
-                    pendingTargetLogicalPage = next,
-                    pendingFull = pending,
-                    pendingEffect = OnboardingNavigationEffect.OPEN_FULL1,
-                )
-            }
-            emitEffect(sessionId, OnboardingNavigationEffect.OPEN_FULL1)
-            return OnboardingForwardResult.LaunchFull(
                 effect = OnboardingNavigationEffect.OPEN_FULL1,
-                fullSessionId = fullSessionId,
                 targetLogicalPage = next,
-            )
+            ).toForward()
         }
 
         if (current == 3 && !snap.full2Completed) {
-            val fullSessionId = FullSessionId(idGenerator.nextId())
-            val pending = OnboardingPendingFull(
+            return beginLaunchFull(
+                sessionId = sessionId,
                 fullIndex = 2,
-                fullSessionId = fullSessionId,
-                targetLogicalPage = next,
-            )
-            publish {
-                it.copy(
-                    pendingTargetLogicalPage = next,
-                    pendingFull = pending,
-                    pendingEffect = OnboardingNavigationEffect.OPEN_FULL2,
-                )
-            }
-            emitEffect(sessionId, OnboardingNavigationEffect.OPEN_FULL2)
-            return OnboardingForwardResult.LaunchFull(
                 effect = OnboardingNavigationEffect.OPEN_FULL2,
-                fullSessionId = fullSessionId,
                 targetLogicalPage = next,
-            )
+            ).toForward()
         }
 
         if (next == null) {
@@ -169,11 +144,39 @@ public class OnboardingBoundaryCoordinator(
         if (snap.sessionId != sessionId) {
             return OnboardingBackwardResult.Ignored("session mismatch")
         }
-        if (snap.pendingFull != null) {
-            return OnboardingBackwardResult.Ignored("full pending")
+        // Cancel an unfinished forward Full (user pulled back mid-gesture), then apply
+        // backward rules — which may launch the Full that sits before the previous page.
+        if (snap.pendingFull != null || snap.pendingEffect != null) {
+            publish {
+                it.copy(
+                    pendingFull = null,
+                    pendingTargetLogicalPage = null,
+                    pendingEffect = null,
+                )
+            }
         }
-        val previous = previousActiveBefore(snap.activePages, snap.currentLogicalPage)
+        val latest = mutableSnapshot.value ?: return OnboardingBackwardResult.Ignored("no session")
+        val previous = previousActiveBefore(latest.activePages, latest.currentLogicalPage)
             ?: return OnboardingBackwardResult.Ignored("already first")
+
+        // Mirror forward gates: previous==3 → Full2; previous==2 → Full1.
+        if (previous == 3) {
+            return beginLaunchFull(
+                sessionId = sessionId,
+                fullIndex = 2,
+                effect = OnboardingNavigationEffect.OPEN_FULL2,
+                targetLogicalPage = previous,
+            ).toBackward()
+        }
+        if (previous == 2) {
+            return beginLaunchFull(
+                sessionId = sessionId,
+                fullIndex = 1,
+                effect = OnboardingNavigationEffect.OPEN_FULL1,
+                targetLogicalPage = previous,
+            ).toBackward()
+        }
+
         publish { it.copy(currentLogicalPage = previous) }
         emitPage(sessionId, previous)
         return OnboardingBackwardResult.MovedToPage(previous)
@@ -245,6 +248,66 @@ public class OnboardingBoundaryCoordinator(
         val index = active.indexOf(current)
         if (index <= 0) return null
         return active.getOrNull(index - 1)
+    }
+
+    private data class LaunchFullPending(
+        val effect: OnboardingNavigationEffect,
+        val fullSessionId: FullSessionId,
+        val targetLogicalPage: Int?,
+    ) {
+        fun toForward(): OnboardingForwardResult.LaunchFull =
+            OnboardingForwardResult.LaunchFull(
+                effect = effect,
+                fullSessionId = fullSessionId,
+                targetLogicalPage = targetLogicalPage,
+            )
+
+        fun toBackward(): OnboardingBackwardResult.LaunchFull {
+            val target = requireNotNull(targetLogicalPage) {
+                "Backward Full requires a target pager"
+            }
+            return OnboardingBackwardResult.LaunchFull(
+                effect = effect,
+                fullSessionId = fullSessionId,
+                targetLogicalPage = target,
+            )
+        }
+    }
+
+    private fun beginLaunchFull(
+        sessionId: OnboardingSessionId,
+        fullIndex: Int,
+        effect: OnboardingNavigationEffect,
+        targetLogicalPage: Int?,
+    ): LaunchFullPending {
+        unclaim(effect)
+        val fullSessionId = FullSessionId(idGenerator.nextId())
+        val pending = OnboardingPendingFull(
+            fullIndex = fullIndex,
+            fullSessionId = fullSessionId,
+            targetLogicalPage = targetLogicalPage,
+        )
+        publish {
+            it.copy(
+                pendingTargetLogicalPage = targetLogicalPage,
+                pendingFull = pending,
+                pendingEffect = effect,
+            )
+        }
+        emitEffect(sessionId, effect)
+        return LaunchFullPending(
+            effect = effect,
+            fullSessionId = fullSessionId,
+            targetLogicalPage = targetLogicalPage,
+        )
+    }
+
+    private fun unclaim(effect: OnboardingNavigationEffect) {
+        while (true) {
+            val claimed = claimedEffects.get()
+            if (effect !in claimed) return
+            if (claimedEffects.compareAndSet(claimed, claimed - effect)) return
+        }
     }
 
     private fun publish(transform: (OnboardingFlowSnapshot) -> OnboardingFlowSnapshot) {

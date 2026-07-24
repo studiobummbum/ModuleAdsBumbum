@@ -16,6 +16,7 @@ import com.example.adsmodule.sdk.AdFormat
 public enum class SplashStage {
     BOOTSTRAP,
     LOADING,
+    PRIMARY_PRESHOW,
     PRIMARY_SHOWING,
     NATIVE_FULL,
     LANGUAGE_LOADING,
@@ -90,6 +91,8 @@ public data class SplashFlowSnapshot(
     val primaryKind: FullscreenAdKind? = null,
     val primaryFormat: AdFormat? = null,
     val primaryObjectId: ObjectId? = null,
+    val screenTimeoutTotalMillis: Long? = null,
+    val screenTimeoutDeadlineMillis: Long? = null,
     val skipTimer: SplashSkipTimerSnapshot = SplashSkipTimerSnapshot(),
     val nativeFull: SplashNativeFullControlSnapshot = SplashNativeFullControlSnapshot(),
     val pendingEffect: SplashNavigationEffect? = null,

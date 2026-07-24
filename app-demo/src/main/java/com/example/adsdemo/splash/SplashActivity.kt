@@ -1,29 +1,34 @@
 package com.example.adsdemo.splash
 
+import android.animation.ValueAnimator
+import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
+import android.view.Window
+import android.view.animation.LinearInterpolator
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
+import com.example.adsdemo.R
 import com.example.adsdemo.databinding.ActivitySplashBinding
 import com.example.adsdemo.language.LanguageLoadingActivity
-import com.example.adsdemo.sdk.AdMobSplashInlineAdBinder
 import com.example.adsmodule.core.SplashSessionId
 import com.example.adsmodule.core.splash.SplashFlowSnapshot
-import com.example.adsmodule.core.splash.SplashLoadStatus
 import com.example.adsmodule.core.splash.SplashNavigationEffect
-import com.example.adsmodule.core.splash.SplashPlacement
+import com.example.adsmodule.core.splash.SplashStage
 import kotlinx.coroutines.launch
 
 class SplashActivity : AppCompatActivity() {
     private lateinit var binding: ActivitySplashBinding
-    private val binder: SplashInlineAdBinder by lazy { AdMobSplashInlineAdBinder() }
-    private var boundNativeObjectId: String? = null
-    private var boundBannerObjectId: String? = null
-    private var attachedSessionId: String? = null
+    private var progressAnimator: ValueAnimator? = null
+    private var loadingAdsDialog: Dialog? = null
+    private var confirmedPrimaryShowSessionId: String? = null
+    private var progressStartedForSession: String? = null
+    private var fallbackProgressStarted = false
 
     private val graph get() = (application as AdsDemoApplication).graph
 
@@ -31,6 +36,9 @@ class SplashActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySplashBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Always move the bar immediately so splash never looks frozen while config/ads load.
+        startProgressAnimation(DEFAULT_TIMEOUT_MILLIS, fromProgress = 0)
 
         binding.splashDebugOverlay.visibility =
             if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
@@ -69,9 +77,15 @@ class SplashActivity : AppCompatActivity() {
         }
     }
 
+    override fun onDestroy() {
+        progressAnimator?.cancel()
+        progressAnimator = null
+        dismissLoadingAdsDialog()
+        super.onDestroy()
+    }
+
     private fun render(snap: SplashFlowSnapshot) {
-        attachedSessionId = snap.sessionId.value
-        binding.splashStatus.text = "Stage: ${snap.stage} | skip=${snap.skipTimer.state}"
+        binding.splashStatus.text = getString(R.string.splash_status_loading)
         if (binding.splashDebugOverlay.visibility == View.VISIBLE) {
             binding.splashDebugOverlay.text = buildString {
                 append("session=").append(snap.sessionId.value).append('\n')
@@ -80,31 +94,33 @@ class SplashActivity : AppCompatActivity() {
                     .append(" rem=").append(snap.skipTimer.remainingMillis).append('\n')
                 append("showRequest=").append(snap.primaryShowRequestId?.value).append('\n')
                 append("effect=").append(snap.pendingEffect).append('\n')
-                snap.placements.values.forEach { placement ->
-                    append(placement.placement).append('=')
-                        .append(placement.status).append(' ')
-                        .append(placement.storedAd?.sourceAdunit ?: "")
-                        .append('\n')
-                }
+                append("timeoutTotal=").append(snap.screenTimeoutTotalMillis).append('\n')
+                append("progress=").append(binding.splashProgress.progress).append('\n')
                 append(snap.debugMessage.orEmpty())
             }
         }
 
-        val native = snap.placements[SplashPlacement.NATIVE_SPLASH]
-        if (native?.status == SplashLoadStatus.READY && native.storedAd != null) {
-            val objectId = native.storedAd!!.objectId.value
-            if (boundNativeObjectId != objectId) {
-                binder.bindNative(binding.nativeSplashContainer, native.storedAd!!)
-                boundNativeObjectId = objectId
-            }
-        }
+        updateProgress(snap)
 
-        val banner = snap.placements[SplashPlacement.BANNER_UFO]
-        if (banner?.status == SplashLoadStatus.READY && banner.storedAd != null) {
-            val objectId = banner.storedAd!!.objectId.value
-            if (boundBannerObjectId != objectId) {
-                binder.bindBanner(binding.bannerUfoContainer, banner.storedAd!!)
-                boundBannerObjectId = objectId
+        when (snap.stage) {
+            SplashStage.PRIMARY_PRESHOW -> {
+                snapProgressToFull()
+                showLoadingAdsDialogAndConfirm(snap.sessionId)
+            }
+            SplashStage.PRIMARY_SHOWING,
+            SplashStage.NATIVE_FULL,
+            SplashStage.LANGUAGE_LOADING,
+            SplashStage.TERMINAL,
+            -> {
+                snapProgressToFull()
+                dismissLoadingAdsDialog()
+            }
+            else -> {
+                if (loadingAdsDialog?.isShowing == true &&
+                    snap.stage != SplashStage.PRIMARY_PRESHOW
+                ) {
+                    dismissLoadingAdsDialog()
+                }
             }
         }
 
@@ -140,7 +156,87 @@ class SplashActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateProgress(snap: SplashFlowSnapshot) {
+        if (snap.stage == SplashStage.PRIMARY_PRESHOW ||
+            snap.stage == SplashStage.PRIMARY_SHOWING ||
+            snap.stage == SplashStage.NATIVE_FULL ||
+            snap.stage == SplashStage.LANGUAGE_LOADING ||
+            snap.stage == SplashStage.TERMINAL
+        ) {
+            snapProgressToFull()
+            return
+        }
+
+        val total = snap.screenTimeoutTotalMillis ?: return
+        if (total <= 0L) return
+        if (progressStartedForSession == snap.sessionId.value && progressAnimator?.isRunning == true) {
+            return
+        }
+        // Re-sync animator to coordinator timeout once available (keeps current fill).
+        val from = binding.splashProgress.progress.coerceIn(0, 99)
+        progressStartedForSession = snap.sessionId.value
+        fallbackProgressStarted = true
+        startProgressAnimation(total, fromProgress = from)
+    }
+
+    private fun startProgressAnimation(durationMillis: Long, fromProgress: Int) {
+        progressAnimator?.cancel()
+        binding.splashProgress.max = 100
+        binding.splashProgress.progress = fromProgress
+        if (fromProgress >= 100) return
+        val duration = durationMillis.coerceAtLeast(1L)
+        progressAnimator = ValueAnimator.ofInt(fromProgress, 100).apply {
+            this.duration = duration
+            interpolator = LinearInterpolator()
+            addUpdateListener { animator ->
+                binding.splashProgress.progress = animator.animatedValue as Int
+            }
+            start()
+        }
+        fallbackProgressStarted = true
+    }
+
+    private fun snapProgressToFull() {
+        progressAnimator?.cancel()
+        progressAnimator = null
+        binding.splashProgress.progress = 100
+    }
+
+    private fun showLoadingAdsDialogAndConfirm(sessionId: SplashSessionId) {
+        if (confirmedPrimaryShowSessionId == sessionId.value) return
+        if (loadingAdsDialog?.isShowing == true) return
+
+        val dialog = Dialog(this).apply {
+            requestWindowFeature(Window.FEATURE_NO_TITLE)
+            setCancelable(false)
+            setCanceledOnTouchOutside(false)
+            setContentView(
+                LayoutInflater.from(this@SplashActivity)
+                    .inflate(R.layout.dialog_splash_loading_ads, null),
+            )
+        }
+        loadingAdsDialog = dialog
+        dialog.show()
+        dialog.window?.decorView?.post {
+            if (isFinishing || isDestroyed) return@post
+            if (confirmedPrimaryShowSessionId == sessionId.value) return@post
+            val current = graph.splashCoordinator.snapshot.value
+            if (current?.sessionId != sessionId || current.stage != SplashStage.PRIMARY_PRESHOW) {
+                return@post
+            }
+            if (graph.splashCoordinator.confirmPrimaryShow(sessionId)) {
+                confirmedPrimaryShowSessionId = sessionId.value
+            }
+        }
+    }
+
+    private fun dismissLoadingAdsDialog() {
+        loadingAdsDialog?.dismiss()
+        loadingAdsDialog = null
+    }
+
     private companion object {
         private const val KEY_SESSION_ID = "splash_session_id"
+        private const val DEFAULT_TIMEOUT_MILLIS = 30_000L
     }
 }

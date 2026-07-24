@@ -7,6 +7,7 @@
     <string name="splash_logo">Prank Call Idol</string>
     <string name="splash_status_loading">Preparing components…</string>
     <string name="splash_ads_disclaimer">This action can contain ads</string>
+    <string name="splash_loading_and_show_ads">Loading and Show Ads</string>
     <string name="ad_label">Ad</string>
     <string name="native_full_splash_title">Native Full Splash</string>
     <string name="native_full_cta">Install</string>
@@ -22,9 +23,11 @@
     <string name="language_dup_selected">Selected: %1$s</string>
     <string name="language_continue">Continue</string>
     <string name="language_next">Continue</string>
+    <string name="language_dup_next">Next</string>
     <string name="language_selected_mark">✓</string>
     <string name="language_flag_content_description">Language flag</string>
     <string name="apply_language_status">Applying Your Language</string>
+    <string name="apply_language_status_named">Applying %1$s Language…</string>
     <string name="apply_language_selected">%1$s</string>
     <string name="onboarding_title">Onboarding</string>
     <string name="onboarding_next">Continue</string>

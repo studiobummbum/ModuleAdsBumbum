@@ -29,10 +29,12 @@
             android:exported="false" />
         <activity
             android:name=".language.LanguageActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.ModuleAdsExample.NoAnimation" />
         <activity
             android:name=".language.LanguageDupActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.ModuleAdsExample.NoAnimation" />
         <activity
             android:name=".language.ApplyLanguageActivity"
             android:exported="false" />

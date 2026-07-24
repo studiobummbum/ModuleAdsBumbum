@@ -11,18 +11,44 @@ import com.google.android.gms.ads.nativead.MediaView
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
 
+public enum class AdMobNativeLayoutStyle {
+    DEFAULT,
+    MEDIUM_BOTTOM,
+    FULL,
+}
+
 /**
  * Binds an [AdMobNativeLoadedAd] into a container using the module layout.
  */
 public class AdMobNativeRenderer {
-    public fun bind(container: ViewGroup, handle: SdkLoadedAdHandle): Boolean {
+    public fun bind(
+        container: ViewGroup,
+        handle: SdkLoadedAdHandle,
+        style: AdMobNativeLayoutStyle = AdMobNativeLayoutStyle.DEFAULT,
+    ): Boolean {
         val nativeHandle = handle as? AdMobNativeLoadedAd ?: return false
         val nativeAd = nativeHandle.peekNativeAd() ?: return false
         container.removeAllViews()
+        val layoutRes = when (style) {
+            AdMobNativeLayoutStyle.DEFAULT -> R.layout.view_admob_native
+            AdMobNativeLayoutStyle.MEDIUM_BOTTOM -> R.layout.view_admob_native_medium
+            AdMobNativeLayoutStyle.FULL -> R.layout.view_admob_native_full
+        }
         val adView = LayoutInflater.from(container.context)
-            .inflate(R.layout.view_admob_native, container, false) as NativeAdView
+            .inflate(layoutRes, container, false) as NativeAdView
         populate(adView, nativeAd)
-        container.addView(adView)
+        val layoutParams = if (style == AdMobNativeLayoutStyle.FULL) {
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+        } else {
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+        }
+        container.addView(adView, layoutParams)
         container.visibility = View.VISIBLE
         return true
     }
@@ -46,11 +72,13 @@ public class AdMobNativeRenderer {
         body.text = nativeAd.body
         adView.bodyView = body
 
-        cta.text = nativeAd.callToAction
+        val ctaLabel = nativeAd.callToAction?.takeIf { it.isNotBlank() }
+            ?: cta.context.getString(R.string.admob_native_continue)
+        cta.text = ctaLabel
         adView.callToActionView = cta
 
         val iconDrawable = nativeAd.icon?.drawable
-        if (iconDrawable == null) {
+        if (iconDrawable == null || icon.visibility == View.GONE) {
             icon.visibility = View.GONE
         } else {
             icon.visibility = View.VISIBLE
@@ -58,8 +86,10 @@ public class AdMobNativeRenderer {
             adView.iconView = icon
         }
 
-        advertiser.text = nativeAd.advertiser
-        adView.advertiserView = advertiser
+        if (advertiser.visibility != View.GONE) {
+            advertiser.text = nativeAd.advertiser
+            adView.advertiserView = advertiser
+        }
 
         adView.mediaView = media
         adView.setNativeAd(nativeAd)

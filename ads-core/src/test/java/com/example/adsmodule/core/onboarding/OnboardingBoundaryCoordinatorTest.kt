@@ -154,17 +154,93 @@ class OnboardingBoundaryCoordinatorTest {
     }
 
     @Test
-    fun backwardSwipe_neverLaunchesFull() {
+    fun backwardFromPage3_launchesFull1_thenRestoresPage2() {
         val env = Env()
         val session = env.goToPage3()
         val back = env.coordinator.requestBackward(session)
-        assertEquals(OnboardingBackwardResult.MovedToPage(2), back)
-        assertNull(env.coordinator.snapshot.value!!.pendingEffect)
+        assertTrue(back is OnboardingBackwardResult.LaunchFull)
+        val launch = back as OnboardingBackwardResult.LaunchFull
+        assertEquals(OnboardingNavigationEffect.OPEN_FULL1, launch.effect)
+        assertEquals(2, launch.targetLogicalPage)
+        assertEquals(3, env.coordinator.snapshot.value!!.currentLogicalPage)
+        assertNotNull(env.coordinator.snapshot.value!!.pendingFull)
+
+        assertTrue(env.coordinator.claimEffect(session, OnboardingNavigationEffect.OPEN_FULL1))
+        assertTrue(
+            env.coordinator.onFullResult(
+                OnboardingFullResult(session, launch.fullSessionId, 1, 2),
+            ),
+        )
+        assertEquals(2, env.coordinator.snapshot.value!!.currentLogicalPage)
         assertNull(env.coordinator.snapshot.value!!.pendingFull)
-        // Forward again must still require Full1 if not completed — but full1 was completed
-        // in goToPage3. From page 2 after full1 completed, forward goes to 3 without Full.
+
+        // Forward again after Full1 already completed skips Full1.
         val forward = env.coordinator.requestForward(session)
         assertEquals(OnboardingForwardResult.MovedToPage(3), forward)
+    }
+
+    @Test
+    fun backwardFromPage4_launchesFull2_thenRestoresPage3() {
+        val env = Env()
+        val session = env.goToPage4()
+        val back = env.coordinator.requestBackward(session)
+        assertTrue(back is OnboardingBackwardResult.LaunchFull)
+        val launch = back as OnboardingBackwardResult.LaunchFull
+        assertEquals(OnboardingNavigationEffect.OPEN_FULL2, launch.effect)
+        assertEquals(3, launch.targetLogicalPage)
+        assertEquals(4, env.coordinator.snapshot.value!!.currentLogicalPage)
+
+        assertTrue(env.coordinator.claimEffect(session, OnboardingNavigationEffect.OPEN_FULL2))
+        assertTrue(
+            env.coordinator.onFullResult(
+                OnboardingFullResult(session, launch.fullSessionId, 2, 3),
+            ),
+        )
+        assertEquals(3, env.coordinator.snapshot.value!!.currentLogicalPage)
+    }
+
+    @Test
+    fun backwardFromPage4_whenPage3Off_launchesFull1() {
+        val env = Env()
+        val policy = OnboardingPagePolicy(
+            pages = listOf(
+                page(1, true),
+                page(2, true),
+                page(3, false),
+                page(4, true),
+            ),
+        )
+        val session = env.coordinator.startOrRestore(policy)
+        env.coordinator.requestForward(session) // -> 2
+        val forwardFull = env.coordinator.requestForward(session) as OnboardingForwardResult.LaunchFull
+        env.coordinator.claimEffect(session, OnboardingNavigationEffect.OPEN_FULL1)
+        env.coordinator.onFullResult(
+            OnboardingFullResult(session, forwardFull.fullSessionId, 1, 4),
+        )
+        assertEquals(4, env.coordinator.snapshot.value!!.currentLogicalPage)
+
+        val back = env.coordinator.requestBackward(session)
+        assertTrue(back is OnboardingBackwardResult.LaunchFull)
+        val launch = back as OnboardingBackwardResult.LaunchFull
+        assertEquals(OnboardingNavigationEffect.OPEN_FULL1, launch.effect)
+        assertEquals(2, launch.targetLogicalPage)
+    }
+
+    @Test
+    fun backwardWhileForwardFullPending_cancelsAndMovesToPage1() {
+        val env = Env()
+        val session = env.coordinator.startOrRestore(allPagesPolicy())
+        env.coordinator.requestForward(session) // -> 2
+        val launch = env.coordinator.requestForward(session)
+        assertTrue(launch is OnboardingForwardResult.LaunchFull)
+        assertNotNull(env.coordinator.snapshot.value!!.pendingFull)
+
+        // Pull back from page 2 → page 1: cancel pending Full1, no backward Full gate.
+        val back = env.coordinator.requestBackward(session)
+        assertEquals(OnboardingBackwardResult.MovedToPage(1), back)
+        assertNull(env.coordinator.snapshot.value!!.pendingFull)
+        assertNull(env.coordinator.snapshot.value!!.pendingEffect)
+        assertEquals(1, env.coordinator.snapshot.value!!.currentLogicalPage)
     }
 
     @Test
@@ -280,6 +356,16 @@ class OnboardingBoundaryCoordinatorTest {
             coordinator.claimEffect(session, OnboardingNavigationEffect.OPEN_FULL1)
             coordinator.onFullResult(
                 OnboardingFullResult(session, launch.fullSessionId, 1, 3),
+            )
+            return session
+        }
+
+        fun goToPage4(): OnboardingSessionId {
+            val session = goToPage3()
+            val launch = coordinator.requestForward(session) as OnboardingForwardResult.LaunchFull
+            coordinator.claimEffect(session, OnboardingNavigationEffect.OPEN_FULL2)
+            coordinator.onFullResult(
+                OnboardingFullResult(session, launch.fullSessionId, 2, 4),
             )
             return session
         }

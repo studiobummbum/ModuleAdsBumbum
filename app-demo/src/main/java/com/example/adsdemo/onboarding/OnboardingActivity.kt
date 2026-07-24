@@ -7,10 +7,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.viewpager2.widget.ViewPager2
 import com.example.adsdemo.AdsDemoApplication
-import com.example.adsdemo.R
 import com.example.adsdemo.databinding.ActivityOnboardingBinding
 import com.example.adsdemo.home.HomeActivity
+import com.example.adsmodule.core.onboarding.OnboardingBackwardResult
 import com.example.adsmodule.core.onboarding.OnboardingForwardResult
 import com.example.adsmodule.core.onboarding.OnboardingNavigationEffect
 import kotlinx.coroutines.launch
@@ -19,6 +20,9 @@ class OnboardingActivity : AppCompatActivity() {
     private lateinit var binding: ActivityOnboardingBinding
     private lateinit var adapter: OnboardingPagerAdapter
     private var restoredBundle: Bundle? = null
+    /** Prevents feedback loops when we programmatically move the pager. */
+    private var suppressPagerCallback: Boolean = false
+    private var pagerScrollState: Int = ViewPager2.SCROLL_STATE_IDLE
 
     private val viewModel: OnboardingViewModel by viewModels {
         val app = application as AdsDemoApplication
@@ -52,17 +56,20 @@ class OnboardingActivity : AppCompatActivity() {
 
         adapter = OnboardingPagerAdapter(this, emptyList())
         binding.onboardingPager.adapter = adapter
-        binding.onboardingPager.isUserInputEnabled = false
-        // ViewPager2 creates its RecyclerView when the adapter is attached.
-        binding.onboardingPager.post {
-            OnboardingSwipeGate(
-                pager = binding.onboardingPager,
-                onForward = { handleForward() },
-                onBackward = { handleBackward() },
-            )
-        }
-
-        binding.onboardingNext.setOnClickListener { handleForward() }
+        binding.onboardingPager.isUserInputEnabled = true
+        binding.onboardingPager.offscreenPageLimit = 1
+        binding.onboardingPager.registerOnPageChangeCallback(
+            object : ViewPager2.OnPageChangeCallback() {
+                override fun onPageScrollStateChanged(state: Int) {
+                    pagerScrollState = state
+                    // Only commit navigation when the user gesture has settled. This avoids
+                    // launching Full when the user swipes forward then pulls back.
+                    if (state == ViewPager2.SCROLL_STATE_IDLE && !suppressPagerCallback) {
+                        handleUserPageSettled(binding.onboardingPager.currentItem)
+                    }
+                }
+            },
+        )
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -73,8 +80,10 @@ class OnboardingActivity : AppCompatActivity() {
                         adapter.submitPages(snap.activePages)
                     }
                     val adapterIndex = snap.currentAdapterIndex
-                    if (binding.onboardingPager.currentItem != adapterIndex) {
-                        binding.onboardingPager.setCurrentItem(adapterIndex, false)
+                    if (binding.onboardingPager.currentItem != adapterIndex &&
+                        pagerScrollState == ViewPager2.SCROLL_STATE_IDLE
+                    ) {
+                        setPagerItem(adapterIndex, smooth = false)
                     }
                     viewModel.onPageVisible(snap.currentLogicalPage)
                     maybeLaunchPendingEffect(snap.sessionId.value, snap.pendingEffect)
@@ -87,17 +96,78 @@ class OnboardingActivity : AppCompatActivity() {
         handleForward()
     }
 
-    private fun handleForward() {
-        when (val result = viewModel.requestForward()) {
-            is OnboardingForwardResult.MovedToPage -> Unit
-            is OnboardingForwardResult.LaunchFull -> Unit
-            is OnboardingForwardResult.OpenHome -> Unit
-            is OnboardingForwardResult.Ignored -> Unit
+    internal fun activePages(): List<Int> =
+        viewModel.snapshot.value?.activePages.orEmpty()
+
+    /**
+     * Called only when pager scroll is IDLE. Syncs user swipe with the boundary
+     * coordinator. Backward re-opens Full when the previous page sits behind a Full gate.
+     */
+    private fun handleUserPageSettled(position: Int) {
+        val snap = viewModel.snapshot.value ?: return
+        if (position !in snap.activePages.indices) return
+        val targetLogical = snap.activePages[position]
+        val currentLogical = snap.currentLogicalPage
+        if (targetLogical == currentLogical) return
+
+        val currentIndex = snap.currentAdapterIndex
+        if (position > currentIndex) {
+            when (val result = viewModel.requestForward()) {
+                is OnboardingForwardResult.MovedToPage -> {
+                    val newIndex = viewModel.snapshot.value?.currentAdapterIndex ?: currentIndex
+                    if (newIndex != position) {
+                        setPagerItem(newIndex, smooth = false)
+                    }
+                }
+                is OnboardingForwardResult.LaunchFull -> {
+                    // Keep pager on the gate page; effect collector opens Full.
+                    setPagerItem(currentIndex, smooth = false)
+                }
+                is OnboardingForwardResult.OpenHome -> {
+                    setPagerItem(currentIndex, smooth = false)
+                }
+                is OnboardingForwardResult.Ignored -> {
+                    setPagerItem(currentIndex, smooth = false)
+                }
+            }
+        } else {
+            when (val result = viewModel.requestBackward()) {
+                is OnboardingBackwardResult.MovedToPage -> {
+                    val newIndex = viewModel.snapshot.value?.currentAdapterIndex ?: currentIndex
+                    if (newIndex != position) {
+                        setPagerItem(newIndex, smooth = false)
+                    }
+                }
+                is OnboardingBackwardResult.LaunchFull -> {
+                    // Stay on current pager while Full opens; result restores previous page.
+                    setPagerItem(currentIndex, smooth = false)
+                }
+                is OnboardingBackwardResult.Ignored -> {
+                    setPagerItem(currentIndex, smooth = false)
+                }
+            }
         }
     }
 
-    private fun handleBackward() {
-        viewModel.requestBackward()
+    private fun setPagerItem(index: Int, smooth: Boolean) {
+        if (binding.onboardingPager.currentItem == index) return
+        suppressPagerCallback = true
+        binding.onboardingPager.setCurrentItem(index, smooth)
+        binding.onboardingPager.post {
+            suppressPagerCallback = false
+        }
+    }
+
+    private fun handleForward() {
+        val before = viewModel.snapshot.value?.currentAdapterIndex
+        when (val result = viewModel.requestForward()) {
+            is OnboardingForwardResult.MovedToPage -> Unit
+            is OnboardingForwardResult.LaunchFull -> {
+                if (before != null) setPagerItem(before, smooth = false)
+            }
+            is OnboardingForwardResult.OpenHome -> Unit
+            is OnboardingForwardResult.Ignored -> Unit
+        }
     }
 
     private fun maybeLaunchPendingEffect(
@@ -105,12 +175,19 @@ class OnboardingActivity : AppCompatActivity() {
         effect: OnboardingNavigationEffect?,
     ) {
         if (effect == null) return
+        // Wait until the pager gesture settles so pull-back can cancel pending Full first.
+        if (pagerScrollState != ViewPager2.SCROLL_STATE_IDLE) return
         val sessionId = viewModel.sessionIdOrNull() ?: return
         if (sessionId.value != sessionIdValue) return
         val snap = viewModel.snapshot.value ?: return
         when (effect) {
             OnboardingNavigationEffect.OPEN_FULL1 -> {
                 val pending = snap.pendingFull ?: return
+                if (pending.fullIndex != 1) return
+                // Forward gate stays on page 2; backward re-open keeps current after the gate.
+                val forwardGate = snap.currentLogicalPage == 2
+                val backwardGate = pending.targetLogicalPage == 2 && snap.currentLogicalPage != 2
+                if (!forwardGate && !backwardGate) return
                 if (!viewModel.claimEffect(effect)) return
                 full1Launcher.launch(
                     OnboardingFullContract.Input(
@@ -122,6 +199,10 @@ class OnboardingActivity : AppCompatActivity() {
             }
             OnboardingNavigationEffect.OPEN_FULL2 -> {
                 val pending = snap.pendingFull ?: return
+                if (pending.fullIndex != 2) return
+                val forwardGate = snap.currentLogicalPage == 3
+                val backwardGate = pending.targetLogicalPage == 3 && snap.currentLogicalPage != 3
+                if (!forwardGate && !backwardGate) return
                 if (!viewModel.claimEffect(effect)) return
                 full2Launcher.launch(
                     OnboardingFullContract.Input(

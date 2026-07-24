@@ -35,7 +35,7 @@ class OnboardingActivityTest {
             scenario.onActivity { activity ->
                 val pager = activity.findViewById<ViewPager2>(R.id.onboarding_pager)
                 assertEquals(4, pager.adapter?.itemCount)
-                assertNotNull(activity.findViewById(R.id.onboarding_next))
+                assertNotNull(activity.findViewById(R.id.onboarding_next_link))
             }
         }
     }
@@ -126,7 +126,7 @@ class OnboardingActivityTest {
 
     private fun clickNext(scenario: ActivityScenario<OnboardingActivity>) {
         scenario.onActivity { activity ->
-            activity.findViewById<android.view.View>(R.id.onboarding_next).performClick()
+            activity.forwardFromFragment()
         }
         Thread.sleep(100)
     }

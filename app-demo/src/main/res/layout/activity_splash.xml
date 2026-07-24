@@ -10,11 +10,11 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
+        <!-- Kept for binder compatibility; hidden to match Figma splash placement. -->
         <FrameLayout
             android:id="@+id/banner_ufo_container"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:minHeight="52dp"
+            android:layout_height="0dp"
             android:visibility="gone" />
 
         <FrameLayout
@@ -69,7 +69,7 @@
                     android:layout_marginTop="16dp"
                     android:indeterminate="false"
                     android:max="100"
-                    android:progress="65"
+                    android:progress="0"
                     android:progressDrawable="@drawable/progress_horizontal_demo" />
             </LinearLayout>
         </FrameLayout>
@@ -77,8 +77,7 @@
         <FrameLayout
             android:id="@+id/native_splash_container"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:minHeight="96dp"
+            android:layout_height="0dp"
             android:visibility="gone" />
     </LinearLayout>
 

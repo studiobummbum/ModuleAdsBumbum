@@ -4,6 +4,7 @@ import com.example.adsmodule.core.AudienceType
 import com.example.adsmodule.core.Clock
 import com.example.adsmodule.core.ConfigKey
 import com.example.adsmodule.core.SessionId
+import com.example.adsmodule.core.SplashSessionId
 import com.example.adsmodule.core.config.AdsConfigSnapshot
 import com.example.adsmodule.core.config.AdsConfigValue
 import com.example.adsmodule.core.config.BooleanConfigValue
@@ -69,6 +70,27 @@ class SplashFlowCoordinatorTest {
     }
 
     @Test
+    fun primaryReadyEntersPreshowUntilConfirm() = runTest {
+        val env = Env(this)
+        env.controller.setScenario(
+            FakeAdItemKey("inter_splash_config_1", 0, "inter-0"),
+            FakeScenarioConfig(dismissDelayMillis = 60_000L),
+        )
+        env.coordinator.startOrAttach(env.snapshot())
+        env.awaitPreshow()
+        val pre = env.coordinator.snapshot.value!!
+        assertEquals(SplashStage.PRIMARY_PRESHOW, pre.stage)
+        assertEquals(SplashSkipTimerState.NOT_STARTED, pre.skipTimer.state)
+        assertNotNull(pre.screenTimeoutTotalMillis)
+        assertFalse(env.coordinator.confirmPrimaryShow(SplashSessionId("wrong")))
+        assertTrue(env.coordinator.confirmPrimaryShow(pre.sessionId))
+        env.awaitSkipRunning()
+        assertEquals(SplashSkipTimerState.RUNNING, env.coordinator.snapshot.value!!.skipTimer.state)
+        env.coordinator.cancelNow()
+        runCurrent()
+    }
+
+    @Test
     fun interstitialShownStartsSkipTimerAndOpensNativeFull() = runTest {
         val env = Env(this)
         env.controller.setScenario(
@@ -76,15 +98,8 @@ class SplashFlowCoordinatorTest {
             FakeScenarioConfig(dismissDelayMillis = 60_000L),
         )
         env.coordinator.startOrAttach(env.snapshot())
-        var guard = 0
-        while (
-            env.coordinator.snapshot.value?.skipTimer?.state != SplashSkipTimerState.RUNNING &&
-            guard < 200
-        ) {
-            runCurrent()
-            advanceTimeBy(1L)
-            guard++
-        }
+        env.confirmPrimaryWhenReady()
+        env.awaitSkipRunning()
         val afterShow = env.coordinator.snapshot.value
         assertEquals(SplashSkipTimerState.RUNNING, afterShow!!.skipTimer.state)
 
@@ -116,15 +131,8 @@ class SplashFlowCoordinatorTest {
             FakeScenarioConfig(dismissDelayMillis = 60_000L),
         )
         env.coordinator.startOrAttach(env.snapshot(primaryType = "appopen", primaryAdunit = "appopen-0"))
-        var guard = 0
-        while (
-            env.coordinator.snapshot.value?.skipTimer?.state != SplashSkipTimerState.RUNNING &&
-            guard < 200
-        ) {
-            runCurrent()
-            advanceTimeBy(1L)
-            guard++
-        }
+        env.confirmPrimaryWhenReady()
+        env.awaitSkipRunning()
         assertEquals(SplashSkipTimerState.RUNNING, env.coordinator.snapshot.value!!.skipTimer.state)
         advanceTimeBy(8_000L)
         runCurrent()
@@ -141,15 +149,8 @@ class SplashFlowCoordinatorTest {
             FakeScenarioConfig(dismissDelayMillis = 8_000L),
         )
         env.coordinator.startOrAttach(env.snapshot())
-        var guard = 0
-        while (
-            env.coordinator.snapshot.value?.skipTimer?.state != SplashSkipTimerState.RUNNING &&
-            guard < 200
-        ) {
-            runCurrent()
-            advanceTimeBy(1L)
-            guard++
-        }
+        env.confirmPrimaryWhenReady()
+        env.awaitSkipRunning()
         assertEquals(SplashSkipTimerState.RUNNING, env.coordinator.snapshot.value!!.skipTimer.state)
         advanceTimeBy(8_000L)
         runCurrent()
@@ -292,15 +293,8 @@ class SplashFlowCoordinatorTest {
             FakeScenarioConfig(dismissDelayMillis = 60_000L),
         )
         val first = env.coordinator.startOrAttach(env.snapshot())
-        var guard = 0
-        while (
-            env.coordinator.snapshot.value?.skipTimer?.state != SplashSkipTimerState.RUNNING &&
-            guard < 200
-        ) {
-            runCurrent()
-            advanceTimeBy(1L)
-            guard++
-        }
+        env.confirmPrimaryWhenReady()
+        env.awaitSkipRunning()
         assertEquals(SplashSkipTimerState.RUNNING, env.coordinator.snapshot.value!!.skipTimer.state)
         val reattached = env.coordinator.startOrAttach(
             env.snapshot(),
@@ -348,7 +342,7 @@ class SplashFlowCoordinatorTest {
     }
 
     private class Env(
-        scope: TestScope,
+        private val scope: TestScope,
         audience: AudienceType = AudienceType.PAID,
     ) {
         private val dispatcher = StandardTestDispatcher(scope.testScheduler)
@@ -406,6 +400,38 @@ class SplashFlowCoordinatorTest {
             lifecycle = lifecycle,
             audience = audience,
         )
+
+        fun awaitPreshow() {
+            var guard = 0
+            while (
+                coordinator.snapshot.value?.stage != SplashStage.PRIMARY_PRESHOW &&
+                guard < 400
+            ) {
+                scope.testScheduler.runCurrent()
+                scope.testScheduler.advanceTimeBy(1L)
+                guard++
+            }
+            assertEquals(SplashStage.PRIMARY_PRESHOW, coordinator.snapshot.value?.stage)
+        }
+
+        fun confirmPrimaryWhenReady() {
+            awaitPreshow()
+            val sessionId = coordinator.snapshot.value!!.sessionId
+            assertTrue(coordinator.confirmPrimaryShow(sessionId))
+            scope.testScheduler.runCurrent()
+        }
+
+        fun awaitSkipRunning() {
+            var guard = 0
+            while (
+                coordinator.snapshot.value?.skipTimer?.state != SplashSkipTimerState.RUNNING &&
+                guard < 400
+            ) {
+                scope.testScheduler.runCurrent()
+                scope.testScheduler.advanceTimeBy(1L)
+                guard++
+            }
+        }
 
         fun snapshot(
             bannerOrganic: Boolean = false,
