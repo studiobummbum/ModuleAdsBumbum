@@ -79,16 +79,22 @@ public class NativeFullSplashController(
         showRequestId: ShowRequestId,
         outcome: HostedFullscreenOutcome,
     ) {
-        val controller = synchronized(lock) { active } ?: return
-        if (controller.sessionId != sessionId) return
-        if (controller.hostedSession.showRequestId != showRequestId) return
-        hosted.finish(controller.hostedSession, outcome)
+        val session: HostedFullscreenSession
         synchronized(lock) {
-            if (active === controller) {
+            val controller = active
+            if (controller != null) {
+                if (controller.sessionId != sessionId) return
+                if (controller.hostedSession.showRequestId != showRequestId) return
+                session = controller.hostedSession
                 controller.cancelJobs()
-                active = null
+                if (active === controller) {
+                    active = null
+                }
+            } else {
+                return
             }
         }
+        hosted.finish(session, outcome)
     }
 
     public fun cancel(sessionId: SplashSessionId) {
@@ -114,6 +120,9 @@ public class NativeFullSplashController(
                 active = null
             }
         }
+        // Finish before onExit navigation. Clearing active first used to make finishHosted
+        // a no-op, which restored/left the Inter lock and blocked Onboarding Full.
+        hosted.finish(controller.hostedSession, HostedFullscreenOutcome.COMPLETED)
         controller.onSnapshot(
             SplashNativeFullControlSnapshot(
                 showRequestId = controller.hostedSession.showRequestId,

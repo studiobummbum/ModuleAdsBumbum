@@ -183,6 +183,80 @@ class NativeFullSplashControllerTest {
         assertFalse(env.lock.isBusy())
     }
 
+    @Test
+    fun finishAfterSupersede_dropsCoveredInterAndClearsLock() = runTest {
+        val env = Env(this)
+        val interKey = ConfigKey("inter_splash_config_1")
+        val fullKey = ConfigKey("native_splash_full_config_1")
+        val primaryShow = ShowRequestId("primary-inter")
+
+        // Simulate Inter owning the fullscreen lock.
+        val acquired = env.lock.acquire(
+            com.example.adsmodule.core.fullscreen.FullscreenLockAcquireRequest(
+                showRequestId = primaryShow,
+                objectId = ObjectId("obj-inter"),
+                sourceConfigKey = interKey,
+                screenInstanceId = null,
+                format = AdFormat.INTERSTITIAL,
+                kind = FullscreenAdKind.INTERSTITIAL,
+            ),
+        )
+        assertTrue(acquired is com.example.adsmodule.core.fullscreen.FullscreenLockAcquireResult.Acquired)
+
+        val put = env.storage.putReady(
+            com.example.adsmodule.core.StoredAd(
+                objectId = ObjectId("obj-full-super"),
+                sourceConfigKey = fullKey,
+                sourceListIndex = 0,
+                sourceType = AdFormat.NATIVE_FULLSCREEN,
+                sourceAdunit = "full-super",
+                sourceWeight = 100,
+                screenInstanceId = null,
+                loadedAt = 0L,
+                state = AdSlotState.READY,
+                sdkHandle = NoOpHandle,
+            ),
+        )
+        assertTrue(put is com.example.adsmodule.core.storage.PutResult.Accepted)
+
+        val begin = env.hosted.begin(
+            configKey = fullKey,
+            screenInstanceId = null,
+            kind = FullscreenAdKind.NATIVE_FULL_SPLASH,
+            supersedeShowRequestId = primaryShow,
+        )
+        assertTrue(begin is com.example.adsmodule.core.fullscreen.HostedFullscreenBeginResult.Started)
+        val session =
+            (begin as com.example.adsmodule.core.fullscreen.HostedFullscreenBeginResult.Started).session
+        assertEquals(primaryShow, session.coveredShowRequestId)
+        assertTrue(env.lock.isBusy())
+        assertEquals(1, env.lock.coveredOwners().size)
+
+        env.controller.start(
+            sessionId = env.sessionId,
+            hostedSession = session,
+            timeDelayXButtonMillis = 100L,
+            autoSkipMillis = 100L,
+            onSnapshot = {},
+            onExit = {
+                // requestExit already finished hosted (idempotent if called again).
+                env.controller.finishHosted(
+                    sessionId = env.sessionId,
+                    showRequestId = session.showRequestId,
+                    outcome = com.example.adsmodule.core.fullscreen.HostedFullscreenOutcome.COMPLETED,
+                )
+            },
+        )
+        advanceTimeBy(100L)
+        runCurrent()
+        advanceTimeBy(100L)
+        runCurrent()
+
+        assertFalse("lock must be free for Onboarding Full", env.lock.isBusy())
+        assertTrue(env.lock.coveredOwners().isEmpty())
+        assertNull(env.lock.currentOwner())
+    }
+
     private class Env(scope: kotlinx.coroutines.test.TestScope) {
         val sessionId = SplashSessionId("splash-nf-1")
         val showRequestId = ShowRequestId("show-nf-1")

@@ -7,6 +7,7 @@ import com.example.adsmodule.core.ObjectId
 import com.example.adsmodule.core.ReservationId
 import com.example.adsmodule.core.ScreenInstanceId
 import com.example.adsmodule.core.ShowRequestId
+import com.example.adsmodule.core.debug.AdsModuleLog
 import com.example.adsmodule.core.storage.AdStorage
 import com.example.adsmodule.core.storage.ReserveResult
 import com.example.adsmodule.core.storage.StoredAdView
@@ -116,6 +117,9 @@ public class HostedFullscreenCoordinator(
         if (!session.finished.compareAndSet(false, true)) {
             return HostedFullscreenFinishResult.AlreadyFinished(session.showRequestId)
         }
+        // Splash Native Full supersedes Inter without dismissing it. Leaving Splash must
+        // drop covered owners so release does not restore Inter and block Onboarding Full.
+        dropCoveredOwnersForSplashExit(session)
         return when (outcome) {
             HostedFullscreenOutcome.COMPLETED -> {
                 val consumed =
@@ -144,6 +148,34 @@ public class HostedFullscreenCoordinator(
                     showRequestId = session.showRequestId,
                     markedFailed = failed,
                 )
+            }
+        }
+    }
+
+    private fun dropCoveredOwnersForSplashExit(session: HostedFullscreenSession) {
+        if (session.kind != FullscreenAdKind.NATIVE_FULL_SPLASH) return
+        val coveredId = session.coveredShowRequestId
+        if (coveredId != null) {
+            when (val result = lock.completeCovered(coveredId)) {
+                is FullscreenLockCoveredCompletionResult.Completed -> {
+                    AdsModuleLog.i("SPLASH lock clear covered=${coveredId.value}")
+                }
+                is FullscreenLockCoveredCompletionResult.NotCovered -> {
+                    AdsModuleLog.i(
+                        "SPLASH lock covered already cleared id=${coveredId.value}",
+                    )
+                }
+            }
+        }
+        // Defensive: clear any remaining covered owners before Native Full release.
+        lock.coveredOwners().toList().forEach { owner ->
+            when (lock.completeCovered(owner.showRequestId)) {
+                is FullscreenLockCoveredCompletionResult.Completed -> {
+                    AdsModuleLog.i(
+                        "SPLASH lock clear covered=${owner.showRequestId.value}",
+                    )
+                }
+                else -> Unit
             }
         }
     }

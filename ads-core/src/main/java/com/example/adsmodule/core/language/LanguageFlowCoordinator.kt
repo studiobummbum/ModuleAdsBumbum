@@ -232,6 +232,11 @@ public class LanguageFlowCoordinator(
             )
         }
         emitStage(sessionId, LanguageStage.LANGUAGE_SELECT)
+        // Apply Language reuses DUP native — preload here so Apply opens with READY.
+        AdsModuleLog.i(
+            "PRELOAD apply via language ${AdsModuleLog.placement(LanguageConfigKeys.DUP, snap.dupScreenId)}",
+        )
+        normalAds.ensureLoadedAsync(LanguageConfigKeys.DUP, snap.dupScreenId)
         bindPlacementAsync(
             LanguagePlacement.SELECT,
             LanguageConfigKeys.SELECT,
@@ -285,11 +290,6 @@ public class LanguageFlowCoordinator(
             )
         }
         emitStage(sessionId, LanguageStage.LANGUAGE_DUP)
-        // Apply Language reuses DUP native — preload here so Apply opens with READY.
-        AdsModuleLog.i(
-            "PRELOAD apply via dup ${AdsModuleLog.placement(LanguageConfigKeys.DUP, snap.dupScreenId)}",
-        )
-        normalAds.ensureLoadedAsync(LanguageConfigKeys.DUP, snap.dupScreenId)
         bindPlacementAsync(
             LanguagePlacement.DUP,
             LanguageConfigKeys.DUP,
@@ -306,8 +306,6 @@ public class LanguageFlowCoordinator(
         if (!dupNavigated.compareAndSet(false, true)) {
             return false
         }
-        // Keep Apply preload warm before leaving Dup.
-        normalAds.ensureLoadedAsync(LanguageConfigKeys.DUP, snap.dupScreenId)
         ensureOnboardingPreload()
         requestEffect(sessionId, LanguageNavigationEffect.OPEN_APPLY_LANGUAGE)
         return true

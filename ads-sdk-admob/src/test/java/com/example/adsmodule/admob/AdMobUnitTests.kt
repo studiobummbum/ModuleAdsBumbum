@@ -140,4 +140,18 @@ class AdMobTestAdUnitsSmokeTest {
             assertTrue(AdMobTestAdUnits.isOfficialTestUnit(unit))
         }
     }
+
+    @Test
+    fun nativeFullscreen_usesSameTestUnitAsNative() {
+        assertEquals(AdMobTestAdUnits.NATIVE, AdMobTestAdUnits.NATIVE_FULLSCREEN)
+        assertEquals(
+            AdMobTestAdUnits.NATIVE,
+            AdMobTestAdUnits.forFormat(AdFormat.NATIVE_FULLSCREEN),
+        )
+        val resolver = AdMobAdUnitResolver(AdMobRuntimeMode.TEST)
+        val native = resolver.resolve(AdFormat.NATIVE, "any-native")
+        val full = resolver.resolve(AdFormat.NATIVE_FULLSCREEN, "any-full")
+        assertEquals(native.adUnit, full.adUnit)
+        assertEquals(AdMobTestAdUnits.NATIVE, full.adUnit)
+    }
 }

@@ -292,6 +292,25 @@ class LanguageFlowCoordinatorTest {
         assertNotNull(env.storage.peekReady(LanguageConfigKeys.LOADING, snap.loadingScreenId))
     }
 
+    @Test
+    fun languageSelectOpened_preloadsDupForApply() = runTest {
+        val env = Env(this)
+        val sessionId = env.coordinator.startOrAttach(env.snapshot())
+        advanceTimeBy(2_000L)
+        runCurrent()
+        assertTrue(
+            env.coordinator.claimEffect(sessionId, LanguageNavigationEffect.OPEN_LANGUAGE_SELECT),
+        )
+        env.coordinator.onLanguageSelectOpened(sessionId)
+        advanceUntilIdle()
+        val snap = env.coordinator.snapshot.value!!
+        assertEquals(LanguageStage.LANGUAGE_SELECT, snap.stage)
+        assertNotNull(
+            "Apply reuses DUP — must be READY after Language opens",
+            env.storage.peekReady(LanguageConfigKeys.DUP, snap.dupScreenId),
+        )
+    }
+
     private class Env(
         private val scope: TestScope,
         audience: AudienceType = AudienceType.PAID,
