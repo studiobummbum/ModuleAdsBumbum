@@ -56,6 +56,8 @@ public sealed class NormalScreenBindResult {
     public data class Bound(
         val session: NormalScreenBindSession,
         val state: NormalScreenSlotState,
+        /** Prior SHOWING session to CONSUME only after the UI has swapped to [session]. */
+        val previousSession: NormalScreenBindSession? = null,
     ) : NormalScreenBindResult()
 
     public data class Rejected(

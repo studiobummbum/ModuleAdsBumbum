@@ -181,7 +181,7 @@ public class AdStorage(
     public fun release(reservationId: ReservationId): Boolean = synchronized(lock) {
         val reservation = reservations[reservationId] ?: return false
         val current = byObjectId[reservation.objectId] ?: return false
-        if (current.state != AdSlotState.RESERVED) {
+        if (current.state != AdSlotState.RESERVED && current.state != AdSlotState.SHOWING) {
             return false
         }
         val applied = stateStore.applyAlreadyLocked(
@@ -198,6 +198,33 @@ public class AdStorage(
         addReadyLocked(slot, reservation.objectId)
         reservations.remove(reservationId)
         reservationByObject.remove(reservation.objectId)
+        true
+    }
+
+    /**
+     * Parks a SHOWING native back to READY without destroying the sdkHandle.
+     * Used so Onboarding Full can be re-shown after back/swipe-back.
+     */
+    public fun returnShowingToReady(objectId: ObjectId): Boolean = synchronized(lock) {
+        val current = byObjectId[objectId] ?: return false
+        if (current.state != AdSlotState.SHOWING) {
+            return false
+        }
+        val applied = stateStore.applyAlreadyLocked(
+            subjectId = objectId.value,
+            event = AdsStateEvent.Release,
+            objectId = objectId,
+        )
+        if (applied is ApplyTransitionResult.Rejected) {
+            return false
+        }
+        clearReservationLocked(objectId)
+        val ready = current.withState(AdSlotState.READY)
+        byObjectId[objectId] = ready
+        addReadyLocked(
+            StorageSlotKey(ready.sourceConfigKey, ready.screenInstanceId),
+            objectId,
+        )
         true
     }
 

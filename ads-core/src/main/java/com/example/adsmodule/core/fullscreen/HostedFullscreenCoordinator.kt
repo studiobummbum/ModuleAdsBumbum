@@ -126,6 +126,17 @@ public class HostedFullscreenCoordinator(
                     consumed = consumed,
                 )
             }
+            HostedFullscreenOutcome.PARKED -> {
+                // Keep sdkHandle alive as READY for back/swipe-back re-show.
+                val parked =
+                    storage.returnShowingToReady(session.objectId) ||
+                        storage.release(session.reservationId)
+                lock.release(session.showRequestId)
+                HostedFullscreenFinishResult.Completed(
+                    showRequestId = session.showRequestId,
+                    consumed = parked,
+                )
+            }
             HostedFullscreenOutcome.FAILED -> {
                 val failed = storage.failShowing(session.objectId)
                 lock.release(session.showRequestId)
@@ -169,6 +180,8 @@ public data class HostedFullscreenSession(
 
 public enum class HostedFullscreenOutcome {
     COMPLETED,
+    /** Return SHOWING → READY without destroying; for onboard Full back/swipe-back cache. */
+    PARKED,
     FAILED,
 }
 

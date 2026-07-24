@@ -142,14 +142,55 @@ class NativeFullSplashControllerTest {
         assertFalse(env.controller.onCloseClicked(env.sessionId, env.showRequestId))
     }
 
+    @Test
+    fun cancel_finishesHostedAndReleasesFullscreenLock() = runTest {
+        val env = Env(this)
+        val configKey = ConfigKey("native_splash_full_config_1")
+        val put = env.storage.putReady(
+            com.example.adsmodule.core.StoredAd(
+                objectId = ObjectId("obj-cancel-1"),
+                sourceConfigKey = configKey,
+                sourceListIndex = 0,
+                sourceType = AdFormat.NATIVE_FULLSCREEN,
+                sourceAdunit = "full-cancel",
+                sourceWeight = 100,
+                screenInstanceId = null,
+                loadedAt = 0L,
+                state = AdSlotState.READY,
+                sdkHandle = NoOpHandle,
+            ),
+        )
+        assertTrue(put is com.example.adsmodule.core.storage.PutResult.Accepted)
+        val begin = env.hosted.begin(
+            configKey = configKey,
+            screenInstanceId = null,
+            kind = FullscreenAdKind.NATIVE_FULL_SPLASH,
+        )
+        assertTrue(begin is com.example.adsmodule.core.fullscreen.HostedFullscreenBeginResult.Started)
+        val session =
+            (begin as com.example.adsmodule.core.fullscreen.HostedFullscreenBeginResult.Started).session
+        assertTrue(env.lock.isBusy())
+
+        env.controller.start(
+            sessionId = env.sessionId,
+            hostedSession = session,
+            timeDelayXButtonMillis = 2_000L,
+            autoSkipMillis = 3_000L,
+            onSnapshot = {},
+            onExit = {},
+        )
+        env.controller.cancel(env.sessionId)
+        assertFalse(env.lock.isBusy())
+    }
+
     private class Env(scope: kotlinx.coroutines.test.TestScope) {
         val sessionId = SplashSessionId("splash-nf-1")
         val showRequestId = ShowRequestId("show-nf-1")
         private val ids = SequentialIdGenerator()
         val clock = Clock { scope.testScheduler.currentTime }
-        private val storage = AdStorage(clock = clock, idGenerator = ids)
-        private val lock = GlobalFullscreenLock(clock = clock)
-        private val hosted = HostedFullscreenCoordinator(
+        val storage = AdStorage(clock = clock, idGenerator = ids)
+        val lock = GlobalFullscreenLock(clock = clock)
+        val hosted = HostedFullscreenCoordinator(
             storage = storage,
             lock = lock,
             clock = clock,

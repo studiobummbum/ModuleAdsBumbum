@@ -22,7 +22,10 @@ class AdMobSplashInlineAdBinder : SplashInlineAdBinder {
         if (handle == null ||
             !nativeRenderer.bind(container, handle, AdMobNativeLayoutStyle.MEDIUM_BOTTOM)
         ) {
-            clear(container)
+            // Sticky: never blank an already-visible native on bind failure.
+            if (container.childCount == 0) {
+                clear(container)
+            }
         }
     }
 
@@ -47,7 +50,9 @@ class AdMobNormalNativeAdBinder : NormalNativeAdBinder {
         if (handle == null ||
             !nativeRenderer.bind(container, handle, AdMobNativeLayoutStyle.MEDIUM_BOTTOM)
         ) {
-            clear(container)
+            if (container.childCount == 0) {
+                clear(container)
+            }
         }
     }
 
@@ -78,6 +83,8 @@ class AdMobOnboardingFullNativeBinder : OnboardingFullNativeBinder {
         title: String,
         fullIndex: Int,
     ): NativeFullBoundViews {
+        // Full natives are NOT sticky mid-session — always clear then bind fresh.
+        // Back/swipe-back reuse is handled by parking the object in storage (READY).
         if (storedAd == null) {
             clear(container)
             return NativeFullBoundViews(

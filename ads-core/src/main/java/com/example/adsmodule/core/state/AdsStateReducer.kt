@@ -49,7 +49,9 @@ public object AdsStateReducer {
             AdsStateEvent.ContinueLoading -> AdSlotState.LOADING.takeIf { from == AdSlotState.LOADING }
             AdsStateEvent.MarkReady -> AdSlotState.READY.takeIf { from == AdSlotState.LOADING }
             AdsStateEvent.Reserve -> AdSlotState.RESERVED.takeIf { from == AdSlotState.READY }
-            AdsStateEvent.Release -> AdSlotState.READY.takeIf { from == AdSlotState.RESERVED }
+            AdsStateEvent.Release -> AdSlotState.READY.takeIf {
+                from == AdSlotState.RESERVED || from == AdSlotState.SHOWING
+            }
             AdsStateEvent.MarkShowing -> AdSlotState.SHOWING.takeIf { from == AdSlotState.RESERVED }
             AdsStateEvent.Consume -> when (from) {
                 AdSlotState.READY, AdSlotState.SHOWING -> AdSlotState.CONSUMED

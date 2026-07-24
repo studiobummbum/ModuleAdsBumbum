@@ -21,6 +21,7 @@ import com.example.adsdemo.sdk.AdMobOnboardingFullNativeBinder
 import com.example.adsmodule.core.FullSessionId
 import com.example.adsmodule.core.OnboardingSessionId
 import com.example.adsmodule.core.onboarding.full.FullActivityPhase
+import com.example.adsmodule.core.onboarding.full.FullExitSource
 import com.example.adsmodule.core.onboarding.full.OnboardingFullStartResult
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
@@ -39,13 +40,12 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
     private var fullSessionId: FullSessionId? = null
     private var targetLogicalPage: Int? = null
     private val finishedOnce = AtomicBoolean(false)
+    private var uiReady = false
 
     private val graph get() = (application as AdsDemoApplication).graph
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityOnboardingFullBinding.inflate(layoutInflater)
-        setContentView(binding.root)
 
         val sessionValue = intent.getStringExtra(OnboardingFullContract.EXTRA_SESSION_ID)
             ?: savedInstanceState?.getString(OnboardingFullContract.EXTRA_SESSION_ID)
@@ -71,6 +71,16 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
             null
         }
 
+        // Confirmed empty → skip without flash. Otherwise inflate and wait for READY (incl. parked).
+        if (graph.onboardingFullCoordinator.isConfirmedNoFill(fullIndex)) {
+            deliverNoFillAndFinish(fullSessionValue, sessionValue)
+            return
+        }
+
+        binding = ActivityOnboardingFullBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        uiReady = true
+
         ViewCompat.setOnApplyWindowInsetsListener(binding.onboardingFullTopChrome) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val lp = view.layoutParams as MarginLayoutParams
@@ -91,7 +101,6 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
                     val id = fullSessionId ?: return
-                    // Signed-off: System Back == CLOSE_X (after X delay; first-wins).
                     val handled = graph.onboardingFullCoordinator.onSystemBack(id)
                     Log.i(TAG, "System Back on Full$fullIndex handled=$handled (CLOSE_X policy)")
                 }
@@ -102,25 +111,43 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
             applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         binding.onboardingFullDebug.visibility = if (debuggable) View.VISIBLE else View.GONE
 
-        val start = graph.onboardingFullCoordinator.startOrAttach(
-            fullSessionId = FullSessionId(fullSessionValue),
-            onboardingSessionId = OnboardingSessionId(sessionValue),
-            fullIndex = fullIndex,
-            targetLogicalPage = targetLogicalPage,
-        )
-        when (start) {
-            is OnboardingFullStartResult.Rejected -> {
-                setResult(Activity.RESULT_CANCELED)
-                finish()
-                return
-            }
-            is OnboardingFullStartResult.Attached -> {
-                bindAd(start.snapshot.storedAd)
-                setupGesture()
-            }
-        }
-
         lifecycleScope.launch {
+            val ready = graph.onboardingFullCoordinator.awaitReadyOrTerminal(fullIndex)
+            if (isFinishing || isDestroyed) return@launch
+            if (!ready) {
+                deliverNoFillAndFinish(fullSessionValue, sessionValue)
+                return@launch
+            }
+            when (
+                val start = graph.onboardingFullCoordinator.startOrAttach(
+                    fullSessionId = FullSessionId(fullSessionValue),
+                    onboardingSessionId = OnboardingSessionId(sessionValue),
+                    fullIndex = fullIndex,
+                    targetLogicalPage = targetLogicalPage,
+                )
+            ) {
+                is OnboardingFullStartResult.Rejected -> {
+                    setResult(Activity.RESULT_CANCELED)
+                    finish()
+                    return@launch
+                }
+                is OnboardingFullStartResult.Skipped -> {
+                    deliverNoFillAndFinish(fullSessionValue, sessionValue)
+                    return@launch
+                }
+                is OnboardingFullStartResult.Attached -> {
+                    if (start.snapshot.winningExitSource == FullExitSource.NO_FILL ||
+                        start.snapshot.phase == FullActivityPhase.COMPLETED
+                    ) {
+                        deliverNoFillAndFinish(fullSessionValue, sessionValue)
+                        return@launch
+                    }
+                    // Full is not sticky mid-session — bind once from start.
+                    bindAd(start.snapshot.storedAd)
+                    setupGesture()
+                }
+            }
+
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 graph.onboardingFullCoordinator.snapshot.collect { snap ->
                     if (snap == null) return@collect
@@ -192,8 +219,41 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         gestureDetector?.cancel()
-        binder.clear(binding.onboardingFullAdContainer)
+        if (uiReady && ::binding.isInitialized) {
+            binder.clear(binding.onboardingFullAdContainer)
+        }
         super.onDestroy()
+    }
+
+    private fun deliverNoFillAndFinish(fullSessionValue: String, sessionValue: String) {
+        if (!finishedOnce.compareAndSet(false, true)) return
+        // Ensure coordinator has a NO_FILL exit to consume when Activity skipped early.
+        if (graph.onboardingFullCoordinator.peekActive() == null ||
+            graph.onboardingFullCoordinator.peekActive()?.winningExitSource == null
+        ) {
+            graph.onboardingFullCoordinator.startOrAttach(
+                fullSessionId = FullSessionId(fullSessionValue),
+                onboardingSessionId = OnboardingSessionId(sessionValue),
+                fullIndex = fullIndex,
+                targetLogicalPage = targetLogicalPage,
+            )
+        }
+        val fullId = FullSessionId(fullSessionValue)
+        val result = graph.onboardingFullCoordinator.consumeExitResult(fullId)
+        val intent = Intent()
+            .putExtra(OnboardingFullContract.EXTRA_SESSION_ID, sessionValue)
+            .putExtra(OnboardingFullContract.EXTRA_FULL_SESSION_ID, fullSessionValue)
+            .putExtra(OnboardingFullContract.EXTRA_FULL_INDEX, fullIndex)
+            .putExtra(
+                OnboardingFullContract.EXTRA_EXIT_SOURCE,
+                (result?.exitSource ?: FullExitSource.NO_FILL).name,
+            )
+            .putExtra(OnboardingFullContract.EXTRA_HAS_TARGET, targetLogicalPage != null)
+        targetLogicalPage?.let {
+            intent.putExtra(OnboardingFullContract.EXTRA_TARGET_PAGE, it)
+        }
+        setResult(Activity.RESULT_OK, intent)
+        finish()
     }
 
     private fun bindAd(storedAd: com.example.adsmodule.core.storage.StoredAdView?) {
@@ -233,7 +293,6 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
         val fullId = fullSessionId ?: return
         val result = graph.onboardingFullCoordinator.consumeExitResult(fullId)
         if (result == null) {
-            // Another consumer already claimed; still finish to avoid stuck UI.
             finish()
             return
         }

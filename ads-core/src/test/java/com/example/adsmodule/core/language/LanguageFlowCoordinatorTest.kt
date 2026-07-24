@@ -280,6 +280,18 @@ class LanguageFlowCoordinatorTest {
         )
     }
 
+    @Test
+    fun ensureLanguagePreload_loadsSelectAndDupWithoutSplashShowStage() = runTest {
+        val env = Env(this)
+        env.coordinator.ensureLanguagePreload(env.snapshot())
+        advanceUntilIdle()
+        val snap = env.coordinator.snapshot.value!!
+        assertTrue(snap.languagePreloadStarted)
+        assertNotNull(env.storage.peekReady(LanguageConfigKeys.SELECT, snap.selectScreenId))
+        assertNotNull(env.storage.peekReady(LanguageConfigKeys.DUP, snap.dupScreenId))
+        assertNotNull(env.storage.peekReady(LanguageConfigKeys.LOADING, snap.loadingScreenId))
+    }
+
     private class Env(
         private val scope: TestScope,
         audience: AudienceType = AudienceType.PAID,

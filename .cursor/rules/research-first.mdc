@@ -1,0 +1,30 @@
+---
+alwaysApply: true
+---
+
+# Research-first planning rule
+
+For every task involving architecture, SDK integration, dependency
+configuration, monetization, analytics, attribution, advertising,
+security, performance, platform policy, or external APIs:
+
+1. Do not immediately implement.
+2. Inspect the relevant codebase first.
+3. Determine the exact dependency and platform versions.
+4. Perform current Internet research before making technical decisions.
+5. Prefer primary and official sources.
+6. Use Context7 for library and SDK documentation.
+7. Use Tavily or the available web-search tool for broader research.
+8. Verify that documentation matches the project's actual versions.
+9. Clearly distinguish:
+   - Facts confirmed by project files.
+   - Facts confirmed by external sources.
+   - Assumptions.
+   - Recommendations.
+10. Include source names, publication dates, versions and URLs in the
+    research report.
+11. Identify conflicting sources and explain which source should be trusted.
+12. Produce a reviewable plan before editing code.
+13. Do not implement until the user explicitly approves the plan.
+14. If Internet access is unavailable, say so clearly and do not present
+    unverified knowledge as current research.

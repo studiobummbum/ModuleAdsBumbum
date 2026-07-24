@@ -98,11 +98,16 @@ class OnboardingViewModel(
         graph.onboardingAds.onPageVisible(logicalPage)
     }
 
+    /** Keep sticky native on screen but kick a background reload when returning via back/swipe. */
+    fun reloadNativeOnReturn(logicalPage: Int) {
+        graph.onboardingAds.reloadPageKeepingVisible(logicalPage)
+    }
+
     suspend fun bindPage(logicalPage: Int): NormalScreenBindResult =
         graph.onboardingAds.bindPage(logicalPage)
 
     fun unbindPage(logicalPage: Int) {
-        graph.onboardingAds.unbindPage(logicalPage, NormalScreenUnbindMode.RELEASE)
+        graph.onboardingAds.unbindPage(logicalPage, NormalScreenUnbindMode.CONSUME)
     }
 
     fun boundObjectId(logicalPage: Int): String? =

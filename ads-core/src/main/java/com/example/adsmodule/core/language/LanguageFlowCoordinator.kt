@@ -6,6 +6,7 @@ import com.example.adsmodule.core.IdGenerator
 import com.example.adsmodule.core.LanguageSessionId
 import com.example.adsmodule.core.ScreenInstanceId
 import com.example.adsmodule.core.config.AdsConfigSnapshot
+import com.example.adsmodule.core.debug.AdsModuleLog
 import com.example.adsmodule.core.normal.NormalScreenAdCoordinator
 import com.example.adsmodule.core.normal.NormalScreenBindResult
 import com.example.adsmodule.core.normal.NormalScreenBindSession
@@ -168,7 +169,8 @@ public class LanguageFlowCoordinator(
     }
 
     /**
-     * Early Language preload after Splash reaches READY/show. Idempotent.
+     * Early Language preload (SELECT + DUP + LOADING), typically from Application warmUp
+     * before Splash bindView. Idempotent.
      * Allocates a Language session so preload and UI share the same screen IDs.
      */
     public fun ensureLanguagePreload(configSnapshot: AdsConfigSnapshot): LanguageSessionId {
@@ -283,6 +285,11 @@ public class LanguageFlowCoordinator(
             )
         }
         emitStage(sessionId, LanguageStage.LANGUAGE_DUP)
+        // Apply Language reuses DUP native — preload here so Apply opens with READY.
+        AdsModuleLog.i(
+            "PRELOAD apply via dup ${AdsModuleLog.placement(LanguageConfigKeys.DUP, snap.dupScreenId)}",
+        )
+        normalAds.ensureLoadedAsync(LanguageConfigKeys.DUP, snap.dupScreenId)
         bindPlacementAsync(
             LanguagePlacement.DUP,
             LanguageConfigKeys.DUP,
@@ -299,6 +306,8 @@ public class LanguageFlowCoordinator(
         if (!dupNavigated.compareAndSet(false, true)) {
             return false
         }
+        // Keep Apply preload warm before leaving Dup.
+        normalAds.ensureLoadedAsync(LanguageConfigKeys.DUP, snap.dupScreenId)
         ensureOnboardingPreload()
         requestEffect(sessionId, LanguageNavigationEffect.OPEN_APPLY_LANGUAGE)
         return true
@@ -546,10 +555,31 @@ public class LanguageFlowCoordinator(
     ) {
         scope.launch {
             mutex.withLock {
-                when (val result = normalAds.bind(configKey, screenInstanceId)) {
+                val existing = boundAds.get()[placement]
+                val result = if (existing != null && !existing.finished.get()) {
+                    normalAds.replaceBoundIfReady(configKey, screenInstanceId)
+                } else {
+                    normalAds.bind(configKey, screenInstanceId)
+                }
+                when (result) {
                     is NormalScreenBindResult.Bound -> {
+                        val prior = boundAds.get()[placement]
+                        if (
+                            prior?.objectId == result.session.objectId &&
+                            result.previousSession == null
+                        ) {
+                            return@withLock
+                        }
                         boundAds.updateAndGet { current -> current + (placement to result.session) }
                         publish { it.copy(placements = currentPlacements(it)) }
+                        // Destroy previous only after UI has the new object published for swap.
+                        result.previousSession?.let { previous ->
+                            scope.launch {
+                                // Yield so collectors can bind the new native first.
+                                kotlinx.coroutines.yield()
+                                normalAds.unbind(previous, NormalScreenUnbindMode.CONSUME)
+                            }
+                        }
                     }
                     is NormalScreenBindResult.Rejected -> {
                         publish {
@@ -562,6 +592,24 @@ public class LanguageFlowCoordinator(
                 }
             }
         }
+    }
+
+    /**
+     * Sticky refresh: if a newer READY native exists for [placement], swap the bound
+     * session. UI should re-bind when [LanguageBoundAd] objectId changes; previous is
+     * consumed after a yield so the renderer can swap without blanking.
+     */
+    public fun tryReplaceBound(placement: LanguagePlacement) {
+        val snap = mutableSnapshot.value ?: return
+        val (configKey, screenInstanceId) = when (placement) {
+            LanguagePlacement.LOADING ->
+                LanguageConfigKeys.LOADING to snap.loadingScreenId
+            LanguagePlacement.SELECT ->
+                LanguageConfigKeys.SELECT to snap.selectScreenId
+            LanguagePlacement.DUP ->
+                LanguageConfigKeys.DUP to snap.dupScreenId
+        }
+        bindPlacementAsync(placement, configKey, screenInstanceId)
     }
 
     private fun unbindPlacement(

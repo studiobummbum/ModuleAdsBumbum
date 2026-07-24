@@ -6,6 +6,7 @@ import com.example.adsmodule.core.FullSessionId
 import com.example.adsmodule.core.IdGenerator
 import com.example.adsmodule.core.OnboardingSessionId
 import com.example.adsmodule.core.config.FullScreenTimingConfig
+import com.example.adsmodule.core.debug.AdsModuleLog
 import com.example.adsmodule.core.fullscreen.FullscreenAdKind
 import com.example.adsmodule.core.fullscreen.HostedFullscreenBeginResult
 import com.example.adsmodule.core.fullscreen.HostedFullscreenCoordinator
@@ -53,7 +54,78 @@ public class OnboardingFullCoordinator(
         val ads = snapshot?.adsConfig(configKey)
         if (ads == null || !ads.enable) return
         if (!AudienceEligibility.isEligible(audience, ads.isOrganic)) return
+        AdsModuleLog.i("PRELOAD onboard fullIndex=$fullIndex ${AdsModuleLog.placement(configKey, screen)}")
         normalAds.ensureLoadedAsync(configKey, screen)
+    }
+
+    /**
+     * True when a READY object exists, or a load is still in flight (IDLE/LOADING).
+     * Only terminal empty slots (failed/disabled/exhausted with no READY) are "no fill".
+     */
+    public fun hasReadyAd(fullIndex: Int): Boolean {
+        require(fullIndex == 1 || fullIndex == 2)
+        val configKey = OnboardingFullConfigKeys.adsKey(fullIndex)
+        val screen = OnboardingFullScreenInstances.forIndex(fullIndex)
+        val snapshot = snapshotProvider.current()
+        val ads = snapshot?.adsConfig(configKey)
+        if (ads == null || !ads.enable) return false
+        if (!AudienceEligibility.isEligible(audience, ads.isOrganic)) return false
+        if (normalAds.hasReadyObject(configKey, screen)) return true
+        val status = normalAds.slotState(configKey, screen).status
+        return status == com.example.adsmodule.core.normal.NormalScreenLoadStatus.LOADING ||
+            status == com.example.adsmodule.core.normal.NormalScreenLoadStatus.IDLE ||
+            status == com.example.adsmodule.core.normal.NormalScreenLoadStatus.READY ||
+            status == com.example.adsmodule.core.normal.NormalScreenLoadStatus.BOUND
+    }
+
+    /** True only when we know Full cannot show (config off / terminal empty). */
+    public fun isConfirmedNoFill(fullIndex: Int): Boolean {
+        require(fullIndex == 1 || fullIndex == 2)
+        val configKey = OnboardingFullConfigKeys.adsKey(fullIndex)
+        val screen = OnboardingFullScreenInstances.forIndex(fullIndex)
+        val snapshot = snapshotProvider.current()
+        val ads = snapshot?.adsConfig(configKey)
+        if (ads == null || !ads.enable) return true
+        if (!AudienceEligibility.isEligible(audience, ads.isOrganic)) return true
+        if (normalAds.hasReadyObject(configKey, screen)) return false
+        return when (normalAds.slotState(configKey, screen).status) {
+            com.example.adsmodule.core.normal.NormalScreenLoadStatus.FAILED,
+            com.example.adsmodule.core.normal.NormalScreenLoadStatus.EXHAUSTED,
+            com.example.adsmodule.core.normal.NormalScreenLoadStatus.DISABLED,
+            com.example.adsmodule.core.normal.NormalScreenLoadStatus.INELIGIBLE,
+            -> true
+            else -> false
+        }
+    }
+
+    /**
+     * Waits until a READY object exists or the slot is a confirmed no-fill.
+     * Call before [startOrAttach] so first open is not skipped while still loading.
+     */
+    public suspend fun awaitReadyOrTerminal(
+        fullIndex: Int,
+        timeoutMillis: Long = 8_000L,
+    ): Boolean {
+        ensurePreloaded(fullIndex)
+        val deadline = clock.nowMillis() + timeoutMillis
+        while (clock.nowMillis() < deadline) {
+            if (normalAds.hasReadyObject(
+                    OnboardingFullConfigKeys.adsKey(fullIndex),
+                    OnboardingFullScreenInstances.forIndex(fullIndex),
+                )
+            ) {
+                return true
+            }
+            if (isConfirmedNoFill(fullIndex)) {
+                return false
+            }
+            ensurePreloaded(fullIndex)
+            kotlinx.coroutines.delay(50L)
+        }
+        return normalAds.hasReadyObject(
+            OnboardingFullConfigKeys.adsKey(fullIndex),
+            OnboardingFullScreenInstances.forIndex(fullIndex),
+        )
     }
 
     public fun startOrAttach(
@@ -68,7 +140,11 @@ public class OnboardingFullCoordinator(
             if (existing != null && existing.fullSessionId == fullSessionId) {
                 reattachTimers(existing)
                 publish(existing)
-                return OnboardingFullStartResult.Attached(existing.toSnapshot())
+                return if (existing.exitGate.hasExited()) {
+                    OnboardingFullStartResult.Skipped(existing.toSnapshot())
+                } else {
+                    OnboardingFullStartResult.Attached(existing.toSnapshot())
+                }
             }
             if (existing != null && !existing.exitGate.hasExited()) {
                 // Different session requested while previous still active — cancel prior.
@@ -96,13 +172,13 @@ public class OnboardingFullCoordinator(
             when (begin) {
                 is HostedFullscreenBeginResult.Rejected -> {
                     controller.adUnavailable = true
-                    controller.phase = FullActivityPhase.WAITING_CLOSE_DELAY
                     controller.debugMessage = begin.reason
                     active.set(controller)
-                    // Still allow swipe / X / auto-skip so navigation is never blocked.
-                    startTimers(controller)
-                    publish(controller)
-                    return OnboardingFullStartResult.Attached(controller.toSnapshot())
+                    AdsModuleLog.w(
+                        "FULL begin rejected fullIndex=$fullIndex reason=${begin.reason}",
+                    )
+                    finishAndContinueOnce(controller, FullExitSource.NO_FILL)
+                    return OnboardingFullStartResult.Skipped(controller.toSnapshot())
                 }
                 is HostedFullscreenBeginResult.Started -> {
                     controller.hostedSession = begin.session
@@ -110,6 +186,9 @@ public class OnboardingFullCoordinator(
                     active.set(controller)
                     startTimers(controller)
                     publish(controller)
+                    AdsModuleLog.i(
+                        "FULL begin ok fullIndex=$fullIndex objectId=${begin.session.objectId.value}",
+                    )
                     return OnboardingFullStartResult.Attached(controller.toSnapshot())
                 }
             }
@@ -246,7 +325,9 @@ public class OnboardingFullCoordinator(
             controller.closeDelay.cancel()
             controller.autoSkip.cancel()
             controller.hostedSession?.let { session ->
-                hosted.finish(session, HostedFullscreenOutcome.COMPLETED)
+                // Park shown Full natives so back/swipe-back can re-open without reload gap.
+                // NO_FILL / missing session still uses no hosted finish.
+                hosted.finish(session, HostedFullscreenOutcome.PARKED)
                 controller.hostedSession = null
             }
             controller.phase = FullActivityPhase.COMPLETED

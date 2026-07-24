@@ -76,6 +76,7 @@ class LanguageDupActivity : AppCompatActivity() {
                     binding.languageDupNext.alpha = if (selected != null) 1f else 0.4f
                     updateSelectionMarks(selected?.tag)
                     val placement = snap.placements.dup
+                    viewModel.tryReplaceBound(LanguagePlacement.DUP)
                     val ad = viewModel.boundAd(LanguagePlacement.DUP)?.session?.storedAd
                         ?: placement?.storedAd
                     if (

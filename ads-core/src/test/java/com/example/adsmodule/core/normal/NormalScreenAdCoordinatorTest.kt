@@ -144,6 +144,55 @@ class NormalScreenAdCoordinatorTest {
         assertEquals(1, result.state.storedAd!!.sourceListIndex)
     }
 
+    @Test
+    fun replaceBoundIfReady_keepsOldShowingUntilConsumedAfterSwap() = runTest {
+        val env = Env(this)
+        env.success(env.languageKey, 0, "lang-100")
+        env.success(env.languageKey, 1, "lang-90")
+        val first = env.coordinator.bind(env.languageKey, env.languageScreen)
+            as NormalScreenBindResult.Bound
+        advanceUntilIdle()
+        assertNotNull(env.storage.peekReady(env.languageKey, env.languageScreen))
+
+        val replaced = env.coordinator.replaceBoundIfReady(env.languageKey, env.languageScreen)
+            as NormalScreenBindResult.Bound
+        assertNotNull(replaced.previousSession)
+        assertEquals(first.session.objectId, replaced.previousSession!!.objectId)
+        assertNotEquals(first.session.objectId, replaced.session.objectId)
+        // Old object stays SHOWING until caller consumes after UI swap.
+        assertEquals(
+            com.example.adsmodule.core.AdSlotState.SHOWING,
+            env.storage.get(first.session.objectId)?.state,
+        )
+        assertEquals(
+            com.example.adsmodule.core.AdSlotState.SHOWING,
+            env.storage.get(replaced.session.objectId)?.state,
+        )
+
+        val consumed = env.coordinator.unbind(
+            replaced.previousSession!!,
+            NormalScreenUnbindMode.CONSUME,
+        )
+        assertTrue(consumed is NormalScreenUnbindResult.Consumed)
+        assertEquals(
+            com.example.adsmodule.core.AdSlotState.CONSUMED,
+            env.storage.get(first.session.objectId)?.state,
+        )
+    }
+
+    @Test
+    fun replaceBoundIfReady_withoutNewerReady_returnsCurrentBound() = runTest {
+        val env = Env(this)
+        env.success(env.languageKey, 0, "lang-100")
+        val first = env.coordinator.bind(env.languageKey, env.languageScreen)
+            as NormalScreenBindResult.Bound
+        // Call before refill settles so no newer READY exists yet.
+        val again = env.coordinator.replaceBoundIfReady(env.languageKey, env.languageScreen)
+            as NormalScreenBindResult.Bound
+        assertEquals(first.session.objectId, again.session.objectId)
+        assertEquals(null, again.previousSession)
+    }
+
     private class Env(
         scope: TestScope,
         audience: AudienceType = AudienceType.PAID,

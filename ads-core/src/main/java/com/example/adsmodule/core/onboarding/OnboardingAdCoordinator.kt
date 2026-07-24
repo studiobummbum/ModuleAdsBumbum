@@ -2,6 +2,7 @@ package com.example.adsmodule.core.onboarding
 
 import com.example.adsmodule.core.AudienceType
 import com.example.adsmodule.core.config.AdsConfigSnapshot
+import com.example.adsmodule.core.debug.AdsModuleLog
 import com.example.adsmodule.core.normal.NormalScreenAdCoordinator
 import com.example.adsmodule.core.normal.NormalScreenBindResult
 import com.example.adsmodule.core.normal.NormalScreenBindSession
@@ -12,6 +13,11 @@ import com.example.adsmodule.core.storage.OnboardingScreenInstances
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -34,6 +40,13 @@ public class OnboardingAdCoordinator(
     private val boundSessions =
         ConcurrentHashMap<Int, NormalScreenBindSession>()
     private val policyRef = AtomicReference(OnboardingConfigPolicy.defaultAllEnabled())
+    private val _pageBindEvents = MutableSharedFlow<OnboardingPageBindEvent>(
+        extraBufferCapacity = OnboardingPages.COUNT,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /** Emits when a page bind/replace should be applied to sticky UI hosts. */
+    public val pageBindEvents: SharedFlow<OnboardingPageBindEvent> = _pageBindEvents.asSharedFlow()
 
     public fun refreshPolicy(snapshot: AdsConfigSnapshot? = snapshotProvider.current()) {
         policyRef.set(OnboardingConfigPolicy.resolveOrDefault(snapshot, audience))
@@ -48,6 +61,11 @@ public class OnboardingAdCoordinator(
 
     public fun onPageVisible(logicalPage: Int) {
         OnboardingPages.requireValid(logicalPage)
+        val hasReady = normalAds.hasReadyObject(
+            OnboardingConfigKeys.NATIVE,
+            OnboardingScreenInstances.page(logicalPage),
+        )
+        AdsModuleLog.i("VISIBLE onboard page=$logicalPage hasReady=$hasReady")
         when (logicalPage) {
             1 -> {
                 preloadEligible(listOf(3))
@@ -70,9 +88,14 @@ public class OnboardingAdCoordinator(
 
     public fun preloadEligible(pages: Collection<Int>) {
         val policy = policyRef.get()
-        pages.forEach { page ->
+        val eligible = pages.filter { page ->
             OnboardingPages.requireValid(page)
-            if (!policy.isAdsEnabled(page)) return@forEach
+            policy.isAdsEnabled(page)
+        }
+        if (eligible.isNotEmpty()) {
+            AdsModuleLog.i("PRELOAD onboard pages=$eligible")
+        }
+        eligible.forEach { page ->
             normalAds.ensureLoadedAsync(
                 OnboardingConfigKeys.NATIVE,
                 OnboardingScreenInstances.page(page),
@@ -100,6 +123,7 @@ public class OnboardingAdCoordinator(
         OnboardingPages.requireValid(logicalPage)
         val policy = policyRef.get()
         if (!policy.isAdsEnabled(logicalPage)) {
+            AdsModuleLog.i("BIND onboard page=$logicalPage obtained=false reason=ads_disabled")
             return NormalScreenBindResult.Rejected(
                 reason = "ads disabled for page $logicalPage",
                 state = slotState(logicalPage),
@@ -107,34 +131,99 @@ public class OnboardingAdCoordinator(
         }
         return mutex.withLock {
             val existing = boundSessions[logicalPage]
-            if (existing != null && !existing.finished.get()) {
-                return@withLock NormalScreenBindResult.Bound(
-                    session = existing,
-                    state = slotState(logicalPage),
-                )
-            }
-            when (
-                val result = normalAds.bind(
-                    OnboardingConfigKeys.NATIVE,
-                    OnboardingScreenInstances.page(logicalPage),
-                )
-            ) {
-                is NormalScreenBindResult.Bound -> {
-                    boundSessions[logicalPage] = result.session
-                    result
+            val result = if (existing != null && !existing.finished.get()) {
+                // Sticky: keep SHOWING; swap only when a newer READY object exists.
+                when (
+                    val replaced = normalAds.replaceBoundIfReady(
+                        OnboardingConfigKeys.NATIVE,
+                        OnboardingScreenInstances.page(logicalPage),
+                    )
+                ) {
+                    is NormalScreenBindResult.Bound -> {
+                        boundSessions[logicalPage] = replaced.session
+                        replaced
+                    }
+                    is NormalScreenBindResult.Rejected -> {
+                        NormalScreenBindResult.Bound(
+                            session = existing,
+                            state = slotState(logicalPage),
+                        )
+                    }
                 }
-                is NormalScreenBindResult.Rejected -> result
+            } else {
+                when (
+                    val bound = normalAds.bind(
+                        OnboardingConfigKeys.NATIVE,
+                        OnboardingScreenInstances.page(logicalPage),
+                    )
+                ) {
+                    is NormalScreenBindResult.Bound -> {
+                        boundSessions[logicalPage] = bound.session
+                        bound
+                    }
+                    is NormalScreenBindResult.Rejected -> bound
+                }
             }
+            when (result) {
+                is NormalScreenBindResult.Bound -> AdsModuleLog.i(
+                    "BIND onboard page=$logicalPage obtained=true " +
+                        "objectId=${result.session.objectId.value}" +
+                        if (result.previousSession != null) " replace=true" else "",
+                )
+                is NormalScreenBindResult.Rejected -> AdsModuleLog.i(
+                    "BIND onboard page=$logicalPage obtained=false reason=${result.reason}",
+                )
+            }
+            result
         }
     }
 
     public fun unbindPage(
         logicalPage: Int,
-        mode: NormalScreenUnbindMode = NormalScreenUnbindMode.RELEASE,
+        mode: NormalScreenUnbindMode = NormalScreenUnbindMode.CONSUME,
     ) {
         OnboardingPages.requireValid(logicalPage)
         val session = boundSessions.remove(logicalPage) ?: return
         normalAds.unbind(session, mode)
+    }
+
+    public fun consumeReplacedSession(session: NormalScreenBindSession) {
+        normalAds.unbind(session, NormalScreenUnbindMode.CONSUME)
+    }
+
+    /**
+     * Keep the currently displayed native (sticky), but request a background reload so a
+     * newer READY can replace it in-place via [replaceBoundIfReady].
+     *
+     * Emits [pageBindEvents] when the UI should re-apply (immediate keep, then swap).
+     */
+    public fun reloadPageKeepingVisible(logicalPage: Int) {
+        OnboardingPages.requireValid(logicalPage)
+        val policy = policyRef.get()
+        if (!policy.isAdsEnabled(logicalPage)) return
+        val configKey = OnboardingConfigKeys.NATIVE
+        val screen = OnboardingScreenInstances.page(logicalPage)
+        val beforeId = boundSessions[logicalPage]?.objectId
+        normalAds.requestBackgroundReload(configKey, screen)
+        scope.launch {
+            val first = bindPage(logicalPage)
+            _pageBindEvents.tryEmit(OnboardingPageBindEvent(logicalPage, first))
+            if (first is NormalScreenBindResult.Bound && first.previousSession != null) {
+                return@launch
+            }
+            // Wait for refill to produce a newer READY, then swap in-place.
+            repeat(RELOAD_POLL_ATTEMPTS) {
+                delay(RELOAD_POLL_MILLIS)
+                if (!normalAds.hasReadyObject(configKey, screen)) return@repeat
+                val next = bindPage(logicalPage)
+                if (next is NormalScreenBindResult.Bound &&
+                    (next.previousSession != null || next.session.objectId != beforeId)
+                ) {
+                    _pageBindEvents.tryEmit(OnboardingPageBindEvent(logicalPage, next))
+                    return@launch
+                }
+            }
+        }
     }
 
     public fun bindPageAsync(
@@ -145,4 +234,15 @@ public class OnboardingAdCoordinator(
             onResult(bindPage(logicalPage))
         }
     }
+
+    private companion object {
+        const val RELOAD_POLL_ATTEMPTS: Int = 40
+        const val RELOAD_POLL_MILLIS: Long = 100L
+    }
 }
+
+/** UI host signal: apply [result] for [logicalPage] without blanking sticky natives. */
+public data class OnboardingPageBindEvent(
+    val logicalPage: Int,
+    val result: NormalScreenBindResult,
+)

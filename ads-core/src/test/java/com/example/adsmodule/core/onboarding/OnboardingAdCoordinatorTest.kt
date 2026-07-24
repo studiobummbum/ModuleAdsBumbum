@@ -1,11 +1,14 @@
 package com.example.adsmodule.core.onboarding
 
+import com.example.adsmodule.core.AdSlotState
 import com.example.adsmodule.core.AudienceType
 import com.example.adsmodule.core.Clock
 import com.example.adsmodule.core.ConfigKey
 import com.example.adsmodule.core.IdGenerator
+import com.example.adsmodule.core.ObjectId
 import com.example.adsmodule.core.OriginalAdItem
 import com.example.adsmodule.core.OriginalAdsConfig
+import com.example.adsmodule.core.StoredAd
 import com.example.adsmodule.core.config.AdsConfigSnapshot
 import com.example.adsmodule.core.config.AdsConfigValue
 import com.example.adsmodule.core.config.ConfigValueOrigin
@@ -22,6 +25,7 @@ import com.example.adsmodule.core.refill.RefillDeficitStore
 import com.example.adsmodule.core.refill.WholeListRefillScheduler
 import com.example.adsmodule.core.storage.AdStorage
 import com.example.adsmodule.core.storage.OnboardingScreenInstances
+import com.example.adsmodule.core.storage.PutResult
 import com.example.adsmodule.fake.FakeAdItemKey
 import com.example.adsmodule.fake.FakeAdsSdkController
 import com.example.adsmodule.fake.FakeAdsSdkModule
@@ -29,10 +33,14 @@ import com.example.adsmodule.fake.FakeClock
 import com.example.adsmodule.fake.FakeScenario
 import com.example.adsmodule.fake.FakeScenarioConfig
 import com.example.adsmodule.fake.SequentialFakeObjectIdGenerator
+import com.example.adsmodule.sdk.AdFormat
 import com.example.adsmodule.sdk.AdSdkAdapterRegistry
+import com.example.adsmodule.sdk.SdkLoadedAdHandle
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -150,14 +158,59 @@ class OnboardingAdCoordinatorTest {
         env.onboardingAds.preloadEligible(listOf(1))
         advanceUntilIdle()
         val first = env.onboardingAds.bindPage(1) as NormalScreenBindResult.Bound
-        env.onboardingAds.unbindPage(1, NormalScreenUnbindMode.RELEASE)
+        env.onboardingAds.unbindPage(1, NormalScreenUnbindMode.CONSUME)
+        env.onboardingAds.preloadEligible(listOf(1))
+        advanceUntilIdle()
         val second = env.onboardingAds.bindPage(1) as NormalScreenBindResult.Bound
         assertEquals(OnboardingScreenInstances.page1, second.session.screenInstanceId)
         assertEquals(OnboardingConfigKeys.NATIVE, second.session.configKey)
-        // Bind triggers refill; RELEASE returns the prior object to READY behind any
-        // already-refilled READY object, so object identity may change.
         assertNotNull(second.session.objectId)
         assertNotNull(first.session.objectId)
+    }
+
+    @Test
+    fun bindPage_whileAlreadyBound_replacesWhenNewerReady() = runTest {
+        val env = Env(this)
+        env.onboardingAds.refreshPolicy(env.snapshot())
+        env.onboardingAds.preloadEligible(listOf(1))
+        advanceUntilIdle()
+        val first = env.onboardingAds.bindPage(1) as NormalScreenBindResult.Bound
+        advanceUntilIdle()
+        val second = env.onboardingAds.bindPage(1) as NormalScreenBindResult.Bound
+        if (second.previousSession != null) {
+            assertEquals(first.session.objectId, second.previousSession!!.objectId)
+            assertNotEquals(first.session.objectId, second.session.objectId)
+            env.onboardingAds.consumeReplacedSession(second.previousSession!!)
+        } else {
+            assertEquals(first.session.objectId, second.session.objectId)
+        }
+    }
+
+    @Test
+    fun reloadPageKeepingVisible_emitsReplaceWhenNewerReady() = runTest {
+        val env = Env(this)
+        env.onboardingAds.refreshPolicy(env.snapshot())
+        env.onboardingAds.preloadEligible(listOf(1))
+        advanceUntilIdle()
+        val first = env.onboardingAds.bindPage(1) as NormalScreenBindResult.Bound
+        val events = mutableListOf<OnboardingPageBindEvent>()
+        val collectJob = launch {
+            env.onboardingAds.pageBindEvents.collect { events.add(it) }
+        }
+
+        // Seed a parallel READY while first stays SHOWING (simulates refill after leave/return).
+        env.seedExtraReady(1, objectId = "page1-reload")
+        env.onboardingAds.reloadPageKeepingVisible(1)
+        advanceUntilIdle()
+
+        assertTrue(events.isNotEmpty())
+        val replaced = events.map { it.result }.filterIsInstance<NormalScreenBindResult.Bound>()
+            .firstOrNull { it.previousSession != null }
+        assertNotNull(replaced)
+        assertEquals(first.session.objectId, replaced!!.previousSession!!.objectId)
+        assertNotEquals(first.session.objectId, replaced.session.objectId)
+        env.onboardingAds.consumeReplacedSession(replaced.previousSession!!)
+        collectJob.cancel()
     }
 
     private class Env(
@@ -226,6 +279,31 @@ class OnboardingAdCoordinatorTest {
         }
 
         fun snapshot(): AdsConfigSnapshot = snapshotProvider()
+
+        fun seedExtraReady(logicalPage: Int, objectId: String) {
+            val put = storage.putReady(
+                StoredAd(
+                    objectId = ObjectId(objectId),
+                    sourceConfigKey = OnboardingConfigKeys.NATIVE,
+                    sourceListIndex = 1,
+                    sourceType = AdFormat.NATIVE,
+                    sourceAdunit = "onb-reload",
+                    sourceWeight = 90,
+                    screenInstanceId = OnboardingScreenInstances.page(logicalPage),
+                    loadedAt = clock.nowMillis(),
+                    state = AdSlotState.READY,
+                    sdkHandle = object : SdkLoadedAdHandle {
+                        private val destroyed = AtomicBoolean(false)
+                        override val format: AdFormat = AdFormat.NATIVE
+                        override val adUnit: String = "onb-reload"
+                        override fun destroy() {
+                            destroyed.set(true)
+                        }
+                    },
+                ),
+            )
+            assertTrue(put is PutResult.Accepted)
+        }
 
         private fun buildConfigs(adsPage2Enabled: Boolean): Map<ConfigKey, ResolvedConfig> {
             val native = OriginalAdsConfig(

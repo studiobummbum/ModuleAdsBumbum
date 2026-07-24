@@ -260,7 +260,7 @@ class SplashFlowCoordinatorTest {
     }
 
     @Test
-    fun nativePrimary_advancesToNativeFullWithoutSkipTimer() = runTest {
+    fun nativePrimary_entersPreshowThenNativeFullWithoutSkipTimer() = runTest {
         val env = Env(this)
         env.controller.setScenario(
             FakeAdItemKey("inter_splash_config_1", 0, "native-primary"),
@@ -269,6 +269,7 @@ class SplashFlowCoordinatorTest {
         env.coordinator.startOrAttach(
             env.snapshot(primaryType = "native", primaryAdunit = "native-primary"),
         )
+        env.confirmPrimaryWhenReady()
         var guard = 0
         while (
             env.coordinator.snapshot.value?.stage != SplashStage.NATIVE_FULL &&

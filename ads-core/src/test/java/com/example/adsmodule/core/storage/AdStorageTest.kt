@@ -27,6 +27,26 @@ import org.junit.Test
 
 class AdStorageTest {
     @Test
+    fun returnShowingToReady_parksHandleWithoutDestroy() {
+        val env = StorageEnv()
+        val handle = TrackingHandle(AdFormat.NATIVE, "park-native")
+        val ad = env.nativeAd(
+            objectId = "park-1",
+            screen = OnboardingScreenInstances.page1,
+            handle = handle,
+        )
+        assertTrue(env.storage.putReady(ad) is PutResult.Accepted)
+        val reserved = env.storage.reserveNormal(ad.sourceConfigKey, ad.screenInstanceId)
+        assertTrue(reserved is ReserveResult.Accepted)
+        val reservationId = (reserved as ReserveResult.Accepted).reservation.reservationId
+        assertTrue(env.storage.markShowing(reservationId))
+        assertTrue(env.storage.returnShowingToReady(ObjectId("park-1")))
+        assertFalse(handle.destroyed)
+        assertNotNull(env.storage.peekReady(ad.sourceConfigKey, ad.screenInstanceId))
+        assertEquals(ObjectId("park-1"), env.storage.peekReady(ad.sourceConfigKey, ad.screenInstanceId)!!.objectId)
+    }
+
+    @Test
     fun putReady_rejectsDuplicateObjectIdAndNonReadyState() {
         val env = StorageEnv()
         val ad = env.nativeAd(objectId = "o1", screen = OnboardingScreenInstances.page1)

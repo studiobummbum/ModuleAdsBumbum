@@ -13,6 +13,7 @@ public enum class FullExitSource {
     SWIPE_FORWARD,
     CLOSE_X,
     AUTO_SKIP,
+    NO_FILL,
 }
 
 public enum class FullGateState {
@@ -77,6 +78,10 @@ public data class OnboardingFullSnapshot(
 
 public sealed class OnboardingFullStartResult {
     public data class Attached(
+        val snapshot: OnboardingFullSnapshot,
+    ) : OnboardingFullStartResult()
+
+    public data class Skipped(
         val snapshot: OnboardingFullSnapshot,
     ) : OnboardingFullStartResult()
 

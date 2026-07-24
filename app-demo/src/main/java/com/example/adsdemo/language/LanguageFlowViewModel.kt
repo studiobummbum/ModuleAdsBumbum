@@ -81,6 +81,11 @@ class LanguageFlowViewModel(
 
     fun boundAd(placement: LanguagePlacement) = graph.languageCoordinator.boundAd(placement)
 
+    /** Ask the coordinator to swap in a newer READY native if one is available. */
+    fun tryReplaceBound(placement: LanguagePlacement) {
+        graph.languageCoordinator.tryReplaceBound(placement)
+    }
+
     companion object {
         fun factory(
             graph: AdsDemoGraph,

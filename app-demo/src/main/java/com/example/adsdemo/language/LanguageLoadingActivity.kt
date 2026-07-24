@@ -55,6 +55,7 @@ class LanguageLoadingActivity : AppCompatActivity() {
                     }
                     binding.languageLoadingStatus.text = getString(R.string.language_loading_label)
                     val placement = snap.placements.loading
+                    viewModel.tryReplaceBound(LanguagePlacement.LOADING)
                     val ad = viewModel.boundAd(LanguagePlacement.LOADING)?.session?.storedAd
                         ?: placement?.storedAd
                     if (

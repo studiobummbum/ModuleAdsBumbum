@@ -11,9 +11,14 @@ import androidx.viewpager2.widget.ViewPager2
 import com.example.adsdemo.AdsDemoApplication
 import com.example.adsdemo.databinding.ActivityOnboardingBinding
 import com.example.adsdemo.home.HomeActivity
+import com.example.adsmodule.core.FullSessionId
+import com.example.adsmodule.core.OnboardingSessionId
+import com.example.adsmodule.core.debug.AdsModuleLog
 import com.example.adsmodule.core.onboarding.OnboardingBackwardResult
 import com.example.adsmodule.core.onboarding.OnboardingForwardResult
+import com.example.adsmodule.core.onboarding.OnboardingFullResult
 import com.example.adsmodule.core.onboarding.OnboardingNavigationEffect
+import com.example.adsmodule.core.onboarding.full.FullExitSource
 import kotlinx.coroutines.launch
 
 class OnboardingActivity : AppCompatActivity() {
@@ -38,13 +43,23 @@ class OnboardingActivity : AppCompatActivity() {
 
     private val full1Launcher = registerForActivityResult(OnboardingFullContract(1)) { result ->
         if (result != null) {
-            viewModel.onFullResult(result)
+            applyFullResultAndMaybeReload(result)
         }
     }
 
     private val full2Launcher = registerForActivityResult(OnboardingFullContract(2)) { result ->
         if (result != null) {
-            viewModel.onFullResult(result)
+            applyFullResultAndMaybeReload(result)
+        }
+    }
+
+    /** Full exit that lands on a previous pager page keeps sticky native but reloads it. */
+    private fun applyFullResultAndMaybeReload(result: OnboardingFullResult) {
+        val before = viewModel.snapshot.value?.currentLogicalPage
+        viewModel.onFullResult(result)
+        val after = viewModel.snapshot.value?.currentLogicalPage
+        if (before != null && after != null && after < before) {
+            viewModel.reloadNativeOnReturn(after)
         }
     }
 
@@ -66,6 +81,9 @@ class OnboardingActivity : AppCompatActivity() {
                     // launching Full when the user swipes forward then pulls back.
                     if (state == ViewPager2.SCROLL_STATE_IDLE && !suppressPagerCallback) {
                         handleUserPageSettled(binding.onboardingPager.currentItem)
+                        // Swipe may have published LaunchFull while scroll was settling; the
+                        // snapshot collector can miss IDLE. Re-attempt pending Full/Home here.
+                        retryPendingFullLaunchIfIdle()
                     }
                 }
             },
@@ -137,6 +155,7 @@ class OnboardingActivity : AppCompatActivity() {
                     if (newIndex != position) {
                         setPagerItem(newIndex, smooth = false)
                     }
+                    viewModel.reloadNativeOnReturn(result.logicalPage)
                 }
                 is OnboardingBackwardResult.LaunchFull -> {
                     // Stay on current pager while Full opens; result restores previous page.
@@ -155,7 +174,24 @@ class OnboardingActivity : AppCompatActivity() {
         binding.onboardingPager.setCurrentItem(index, smooth)
         binding.onboardingPager.post {
             suppressPagerCallback = false
+            // After programmatic snap-back from a Full gate, scroll is IDLE again.
+            retryPendingFullLaunchIfIdle()
         }
+    }
+
+    /** Re-fires Full/Home launch when pager is IDLE and an effect is still pending. */
+    private fun retryPendingFullLaunchIfIdle() {
+        if (pagerScrollState != ViewPager2.SCROLL_STATE_IDLE) return
+        val snap = viewModel.snapshot.value ?: return
+        val effect = snap.pendingEffect ?: return
+        if (
+            effect != OnboardingNavigationEffect.OPEN_FULL1 &&
+            effect != OnboardingNavigationEffect.OPEN_FULL2 &&
+            effect != OnboardingNavigationEffect.OPEN_HOME
+        ) {
+            return
+        }
+        maybeLaunchPendingEffect(snap.sessionId.value, effect)
     }
 
     private fun handleForward() {
@@ -164,6 +200,8 @@ class OnboardingActivity : AppCompatActivity() {
             is OnboardingForwardResult.MovedToPage -> Unit
             is OnboardingForwardResult.LaunchFull -> {
                 if (before != null) setPagerItem(before, smooth = false)
+                // Next-tap: no scroll settle — launch immediately while IDLE.
+                retryPendingFullLaunchIfIdle()
             }
             is OnboardingForwardResult.OpenHome -> Unit
             is OnboardingForwardResult.Ignored -> Unit
@@ -176,7 +214,10 @@ class OnboardingActivity : AppCompatActivity() {
     ) {
         if (effect == null) return
         // Wait until the pager gesture settles so pull-back can cancel pending Full first.
-        if (pagerScrollState != ViewPager2.SCROLL_STATE_IDLE) return
+        if (pagerScrollState != ViewPager2.SCROLL_STATE_IDLE) {
+            AdsModuleLog.i("FULL defer effect=$effect reason=pager_not_idle")
+            return
+        }
         val sessionId = viewModel.sessionIdOrNull() ?: return
         if (sessionId.value != sessionIdValue) return
         val snap = viewModel.snapshot.value ?: return
@@ -187,8 +228,30 @@ class OnboardingActivity : AppCompatActivity() {
                 // Forward gate stays on page 2; backward re-open keeps current after the gate.
                 val forwardGate = snap.currentLogicalPage == 2
                 val backwardGate = pending.targetLogicalPage == 2 && snap.currentLogicalPage != 2
-                if (!forwardGate && !backwardGate) return
-                if (!viewModel.claimEffect(effect)) return
+                if (!forwardGate && !backwardGate) {
+                    AdsModuleLog.i(
+                        "FULL skip gate effect=$effect page=${snap.currentLogicalPage} " +
+                            "target=${pending.targetLogicalPage}",
+                    )
+                    return
+                }
+                if (!viewModel.claimEffect(effect)) {
+                    AdsModuleLog.i("FULL claim failed effect=$effect")
+                    return
+                }
+                AdsModuleLog.i(
+                    "FULL launch effect=$effect page=${snap.currentLogicalPage} " +
+                        "target=${pending.targetLogicalPage}",
+                )
+                if (skipFullWhenNoFill(
+                        fullIndex = 1,
+                        sessionId = sessionId,
+                        fullSessionId = pending.fullSessionId,
+                        targetLogicalPage = pending.targetLogicalPage,
+                    )
+                ) {
+                    return
+                }
                 full1Launcher.launch(
                     OnboardingFullContract.Input(
                         sessionId = sessionId,
@@ -202,8 +265,30 @@ class OnboardingActivity : AppCompatActivity() {
                 if (pending.fullIndex != 2) return
                 val forwardGate = snap.currentLogicalPage == 3
                 val backwardGate = pending.targetLogicalPage == 3 && snap.currentLogicalPage != 3
-                if (!forwardGate && !backwardGate) return
-                if (!viewModel.claimEffect(effect)) return
+                if (!forwardGate && !backwardGate) {
+                    AdsModuleLog.i(
+                        "FULL skip gate effect=$effect page=${snap.currentLogicalPage} " +
+                            "target=${pending.targetLogicalPage}",
+                    )
+                    return
+                }
+                if (!viewModel.claimEffect(effect)) {
+                    AdsModuleLog.i("FULL claim failed effect=$effect")
+                    return
+                }
+                AdsModuleLog.i(
+                    "FULL launch effect=$effect page=${snap.currentLogicalPage} " +
+                        "target=${pending.targetLogicalPage}",
+                )
+                if (skipFullWhenNoFill(
+                        fullIndex = 2,
+                        sessionId = sessionId,
+                        fullSessionId = pending.fullSessionId,
+                        targetLogicalPage = pending.targetLogicalPage,
+                    )
+                ) {
+                    return
+                }
                 full2Launcher.launch(
                     OnboardingFullContract.Input(
                         sessionId = sessionId,
@@ -223,6 +308,30 @@ class OnboardingActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun skipFullWhenNoFill(
+        fullIndex: Int,
+        sessionId: OnboardingSessionId,
+        fullSessionId: FullSessionId,
+        targetLogicalPage: Int?,
+    ): Boolean {
+        val graph = (application as AdsDemoApplication).graph
+        // Only skip when confirmed empty — never while still LOADING (that hid Full 1/2).
+        if (!graph.onboardingFullCoordinator.isConfirmedNoFill(fullIndex)) {
+            return false
+        }
+        AdsModuleLog.i("FULL confirmed no-fill fullIndex=$fullIndex — skip activity")
+        viewModel.onFullResult(
+            OnboardingFullResult(
+                sessionId = sessionId,
+                fullSessionId = fullSessionId,
+                fullIndex = fullIndex,
+                targetLogicalPage = targetLogicalPage,
+                exitSource = FullExitSource.NO_FILL,
+            ),
+        )
+        return true
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

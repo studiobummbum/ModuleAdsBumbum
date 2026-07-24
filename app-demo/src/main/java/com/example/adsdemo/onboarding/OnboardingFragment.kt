@@ -11,6 +11,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
+import com.example.adsdemo.AdsDemoGraph
 import com.example.adsdemo.R
 import com.example.adsdemo.databinding.FragmentOnboardingBinding
 import com.example.adsdemo.language.NormalNativeAdBinder
@@ -18,7 +19,6 @@ import com.example.adsdemo.sdk.AdMobNormalNativeAdBinder
 import com.example.adsmodule.core.normal.NormalScreenBindResult
 import com.example.adsmodule.core.normal.NormalScreenUnbindMode
 import com.example.adsmodule.core.storage.OnboardingScreenInstances
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 
 class OnboardingFragment : Fragment() {
@@ -27,6 +27,7 @@ class OnboardingFragment : Fragment() {
         AdMobNormalNativeAdBinder()
     }
     private var boundLogicalPage: Int? = null
+    private var boundObjectId: String? = null
 
     private val logicalPage: Int
         get() = requireArguments().getInt(ARG_LOGICAL_PAGE)
@@ -59,26 +60,49 @@ class OnboardingFragment : Fragment() {
         }
 
         val graph = (requireActivity().application as AdsDemoApplication).graph
+        // STARTED (not RESUMED): keep native bound across offscreen / pause without clear.
         viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 graph.onboardingAds.onPageVisible(page)
-                when (val result = graph.onboardingAds.bindPage(page)) {
-                    is NormalScreenBindResult.Bound -> {
-                        boundLogicalPage = page
-                        binder.bindNative(
-                            container = binding.onboardingNativeContainer,
-                            storedAd = result.session.storedAd,
-                            title = getString(R.string.onboarding_native_title, page),
-                        )
-                    }
-                    is NormalScreenBindResult.Rejected -> {
-                        binder.clear(binding.onboardingNativeContainer)
+                applyBindResult(graph, binding, page, graph.onboardingAds.bindPage(page))
+                // Back/swipe-return reload: keep sticky UI, swap when a newer READY arrives.
+                launch {
+                    graph.onboardingAds.pageBindEvents.collect { event ->
+                        if (event.logicalPage != page) return@collect
+                        applyBindResult(graph, binding, page, event.result)
                     }
                 }
-                try {
-                    awaitCancellation()
-                } finally {
-                    releaseAd(page)
+            }
+        }
+    }
+
+    private fun applyBindResult(
+        graph: AdsDemoGraph,
+        binding: FragmentOnboardingBinding,
+        page: Int,
+        result: NormalScreenBindResult,
+    ) {
+        when (result) {
+            is NormalScreenBindResult.Bound -> {
+                boundLogicalPage = page
+                val objectId = result.session.objectId.value
+                if (boundObjectId != objectId) {
+                    binder.bindNative(
+                        container = binding.onboardingNativeContainer,
+                        storedAd = result.session.storedAd,
+                        title = getString(R.string.onboarding_native_title, page),
+                    )
+                    boundObjectId = objectId
+                }
+                result.previousSession?.let { previous ->
+                    graph.onboardingAds.consumeReplacedSession(previous)
+                }
+            }
+            is NormalScreenBindResult.Rejected -> {
+                // Sticky: keep any already-rendered native; only blank if never shown.
+                if (binding.onboardingNativeContainer.childCount == 0) {
+                    binder.clear(binding.onboardingNativeContainer)
+                    boundObjectId = null
                 }
             }
         }
@@ -132,25 +156,16 @@ class OnboardingFragment : Fragment() {
         else -> getString(R.string.onboarding_caption_4)
     }
 
-    private fun releaseAd(page: Int) {
-        val container = binding?.onboardingNativeContainer
-        if (container != null) {
-            binder.clear(container)
-        }
-        if (boundLogicalPage == page) {
-            val graph = (requireActivity().application as AdsDemoApplication).graph
-            graph.onboardingAds.unbindPage(page, NormalScreenUnbindMode.RELEASE)
-            boundLogicalPage = null
-        }
-    }
-
     override fun onDestroyView() {
         val page = runCatching { logicalPage }.getOrNull()
+        val container = binding?.onboardingNativeContainer
         if (page != null && boundLogicalPage == page) {
             val app = activity?.application as? AdsDemoApplication
-            binding?.onboardingNativeContainer?.let { binder.clear(it) }
-            app?.graph?.onboardingAds?.unbindPage(page, NormalScreenUnbindMode.RELEASE)
+            // Teardown only: clear UI then CONSUME so refill can prepare the next visit.
+            container?.let { binder.clear(it) }
+            app?.graph?.onboardingAds?.unbindPage(page, NormalScreenUnbindMode.CONSUME)
             boundLogicalPage = null
+            boundObjectId = null
         }
         binding = null
         super.onDestroyView()

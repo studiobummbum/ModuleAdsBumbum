@@ -92,12 +92,16 @@ public class NativeFullSplashController(
     }
 
     public fun cancel(sessionId: SplashSessionId) {
+        val toFinish: HostedFullscreenSession
         synchronized(lock) {
             val controller = active ?: return
             if (controller.sessionId != sessionId) return
             controller.cancelJobs()
+            toFinish = controller.hostedSession
             active = null
         }
+        // Always release GlobalFullscreenLock so Onboarding Full can acquire later.
+        hosted.finish(toFinish, HostedFullscreenOutcome.FAILED)
     }
 
     private fun requestExit(controller: ActiveNativeFull, exitSource: String): Boolean {

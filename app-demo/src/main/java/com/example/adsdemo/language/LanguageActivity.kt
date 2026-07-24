@@ -75,6 +75,7 @@ class LanguageActivity : AppCompatActivity() {
                         updateSelectionMarks(pendingSelection?.tag)
                     }
                     val placement = snap.placements.select
+                    viewModel.tryReplaceBound(LanguagePlacement.SELECT)
                     val ad = viewModel.boundAd(LanguagePlacement.SELECT)?.session?.storedAd
                         ?: placement?.storedAd
                     if (

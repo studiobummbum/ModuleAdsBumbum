@@ -42,7 +42,6 @@ import com.example.adsmodule.core.refill.WholeListRefillScheduler
 import com.example.adsmodule.core.resume.AppOpenResumeCoordinator
 import com.example.adsmodule.core.splash.NativeFullSplashController
 import com.example.adsmodule.core.splash.SplashFlowCoordinator
-import com.example.adsmodule.core.splash.SplashStage
 import com.example.adsmodule.core.storage.AdStorage
 import com.example.adsmodule.core.turnback.AdClickTokenStore
 import com.example.adsmodule.core.turnback.AtomicBorrowService
@@ -283,24 +282,12 @@ class AdsDemoGraph(
         appScope.launch {
             configRepository.refresh()
             val snapshot = configRepository.snapshots.value ?: return@launch
+            // Concurrent early preload before SplashActivity bindView:
+            // Ads Splash + Native Splash (via splash session) and Language SELECT + DUP.
             splashCoordinator.startOrAttach(snapshot)
+            languageCoordinator.ensureLanguagePreload(snapshot)
             homeAds.ensureBannerPreloaded()
             appOpenResume.ensurePreloaded()
-        }
-        appScope.launch {
-            splashCoordinator.snapshot.collectLatest { snap ->
-                if (snap == null) return@collectLatest
-                when (snap.stage) {
-                    SplashStage.PRIMARY_SHOWING,
-                    SplashStage.NATIVE_FULL,
-                    SplashStage.LANGUAGE_LOADING,
-                    -> {
-                        val config = configRepository.snapshots.value ?: return@collectLatest
-                        languageCoordinator.ensureLanguagePreload(config)
-                    }
-                    else -> Unit
-                }
-            }
         }
     }
 

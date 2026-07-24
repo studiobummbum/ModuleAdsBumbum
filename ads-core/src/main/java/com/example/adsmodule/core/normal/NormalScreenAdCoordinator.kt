@@ -6,6 +6,7 @@ import com.example.adsmodule.core.ConfigKey
 import com.example.adsmodule.core.IdGenerator
 import com.example.adsmodule.core.LoadCycleId
 import com.example.adsmodule.core.ScreenInstanceId
+import com.example.adsmodule.core.debug.AdsModuleLog
 import com.example.adsmodule.core.load.WeightedListLoader
 import com.example.adsmodule.core.load.WeightedLoadRequest
 import com.example.adsmodule.core.load.WeightedLoadResult
@@ -90,8 +91,10 @@ public class NormalScreenAdCoordinator(
         val slot = StorageSlotKey(configKey, screenInstanceId)
         val existing = loadJobs[slot]
         if (existing != null && existing.isActive) {
+            AdsModuleLog.preloadStart(configKey, screenInstanceId, alreadyInFlight = true)
             return
         }
+        AdsModuleLog.preloadStart(configKey, screenInstanceId, alreadyInFlight = false)
         val job = scope.launch {
             ensureLoaded(configKey, screenInstanceId)
         }
@@ -99,6 +102,26 @@ public class NormalScreenAdCoordinator(
         job.invokeOnCompletion { loadJobs.remove(slot, job) }
     }
 
+    /** True when storage already holds a READY object for this exact slot. */
+    public fun hasReadyObject(
+        configKey: ConfigKey,
+        screenInstanceId: ScreenInstanceId,
+    ): Boolean = storage.peekReady(configKey, screenInstanceId) != null
+
+    /**
+     * Requests a whole-list refill for [configKey]/[screenInstanceId] without unbinding
+     * the currently SHOWING object — used when returning to a previous screen.
+     *
+     * Does not call [ensureLoaded] (that early-returns while BOUND); refill alone loads
+     * a parallel READY that [replaceBoundIfReady] can swap in.
+     */
+    public fun requestBackgroundReload(
+        configKey: ConfigKey,
+        screenInstanceId: ScreenInstanceId,
+    ) {
+        ensureActivated(configKey, screenInstanceId, refillIfDeficit = true)
+        refillScheduler.requestRefill(StorageSlotKey(configKey, screenInstanceId))
+    }
     public suspend fun ensureLoaded(
         configKey: ConfigKey,
         screenInstanceId: ScreenInstanceId,
@@ -115,6 +138,13 @@ public class NormalScreenAdCoordinator(
                     storedAd = existingBound.storedAd,
                     reservationId = existingBound.reservationId,
                 )
+                AdsModuleLog.readyOk(
+                    configKey = configKey,
+                    screenInstanceId = screenInstanceId,
+                    objectId = existingBound.objectId.value,
+                    elapsedMs = 0L,
+                    cacheHit = true,
+                )
                 return@withLock NormalScreenEnsureResult.Ready(state)
             }
 
@@ -127,6 +157,13 @@ public class NormalScreenAdCoordinator(
                     storedAd = peeked.toView(),
                 )
                 states[slot] = ready
+                AdsModuleLog.readyOk(
+                    configKey = configKey,
+                    screenInstanceId = screenInstanceId,
+                    objectId = peeked.objectId.value,
+                    elapsedMs = 0L,
+                    cacheHit = true,
+                )
                 return@withLock NormalScreenEnsureResult.Ready(ready)
             }
 
@@ -139,6 +176,9 @@ public class NormalScreenAdCoordinator(
                     reason = "missing snapshot",
                 )
                 states[slot] = failed
+                AdsModuleLog.readyFail(
+                    configKey, screenInstanceId, failed.status.name, 0L, failed.reason,
+                )
                 return@withLock NormalScreenEnsureResult.Terminal(failed)
             }
 
@@ -151,6 +191,9 @@ public class NormalScreenAdCoordinator(
                     reason = "missing config",
                 )
                 states[slot] = failed
+                AdsModuleLog.readyFail(
+                    configKey, screenInstanceId, failed.status.name, 0L, failed.reason,
+                )
                 return@withLock NormalScreenEnsureResult.Terminal(failed)
             }
             if (!ads.enable) {
@@ -161,6 +204,9 @@ public class NormalScreenAdCoordinator(
                     reason = "enable=false",
                 )
                 states[slot] = disabled
+                AdsModuleLog.readyFail(
+                    configKey, screenInstanceId, disabled.status.name, 0L, disabled.reason,
+                )
                 return@withLock NormalScreenEnsureResult.Terminal(disabled)
             }
             if (!AudienceEligibility.isEligible(audience, ads.isOrganic)) {
@@ -171,6 +217,9 @@ public class NormalScreenAdCoordinator(
                     reason = "audience ineligible",
                 )
                 states[slot] = ineligible
+                AdsModuleLog.readyFail(
+                    configKey, screenInstanceId, ineligible.status.name, 0L, ineligible.reason,
+                )
                 return@withLock NormalScreenEnsureResult.Terminal(ineligible)
             }
 
@@ -182,6 +231,7 @@ public class NormalScreenAdCoordinator(
                 cycleId = cycleId,
             )
 
+            val loadStartedAt = clock.nowMillis()
             val result = loader.load(
                 WeightedLoadRequest(
                     cycleId = cycleId,
@@ -190,6 +240,7 @@ public class NormalScreenAdCoordinator(
                     snapshot = snapshot,
                 ),
             )
+            val elapsedMs = (clock.nowMillis() - loadStartedAt).coerceAtLeast(0L)
 
             when (result) {
                 is WeightedLoadResult.Success -> {
@@ -203,6 +254,13 @@ public class NormalScreenAdCoordinator(
                                 storedAd = put.storedAd,
                             )
                             states[slot] = ready
+                            AdsModuleLog.readyOk(
+                                configKey = configKey,
+                                screenInstanceId = screenInstanceId,
+                                objectId = put.storedAd.objectId.value,
+                                elapsedMs = elapsedMs,
+                                cacheHit = false,
+                            )
                             NormalScreenEnsureResult.Ready(ready)
                         }
                         is PutResult.Rejected -> {
@@ -216,6 +274,9 @@ public class NormalScreenAdCoordinator(
                                 terminalReason = result.reason,
                             )
                             states[slot] = failed
+                            AdsModuleLog.readyFail(
+                                configKey, screenInstanceId, failed.status.name, elapsedMs, put.reason,
+                            )
                             NormalScreenEnsureResult.Terminal(failed)
                         }
                     }
@@ -229,6 +290,9 @@ public class NormalScreenAdCoordinator(
                         terminalReason = result.reason,
                     )
                     states[slot] = disabled
+                    AdsModuleLog.readyFail(
+                        configKey, screenInstanceId, disabled.status.name, elapsedMs, result.reason.name,
+                    )
                     NormalScreenEnsureResult.Terminal(disabled)
                 }
                 is WeightedLoadResult.Exhausted -> {
@@ -240,6 +304,9 @@ public class NormalScreenAdCoordinator(
                         terminalReason = result.reason,
                     )
                     states[slot] = exhausted
+                    AdsModuleLog.readyFail(
+                        configKey, screenInstanceId, exhausted.status.name, elapsedMs, result.reason.name,
+                    )
                     NormalScreenEnsureResult.Terminal(exhausted)
                 }
                 is WeightedLoadResult.TotalTimeout -> {
@@ -252,6 +319,9 @@ public class NormalScreenAdCoordinator(
                         terminalReason = result.reason,
                     )
                     states[slot] = failed
+                    AdsModuleLog.readyFail(
+                        configKey, screenInstanceId, failed.status.name, elapsedMs, failed.reason,
+                    )
                     NormalScreenEnsureResult.Terminal(failed)
                 }
                 is WeightedLoadResult.Cancelled -> {
@@ -263,6 +333,9 @@ public class NormalScreenAdCoordinator(
                         terminalReason = result.reason,
                     )
                     states[slot] = cancelled
+                    AdsModuleLog.readyFail(
+                        configKey, screenInstanceId, cancelled.status.name, elapsedMs, result.reason.name,
+                    )
                     NormalScreenEnsureResult.Terminal(cancelled)
                 }
                 is WeightedLoadResult.MissingConfig -> {
@@ -275,6 +348,9 @@ public class NormalScreenAdCoordinator(
                         terminalReason = result.reason,
                     )
                     states[slot] = failed
+                    AdsModuleLog.readyFail(
+                        configKey, screenInstanceId, failed.status.name, elapsedMs, failed.reason,
+                    )
                     NormalScreenEnsureResult.Terminal(failed)
                 }
             }
@@ -291,7 +367,7 @@ public class NormalScreenAdCoordinator(
     ): NormalScreenBindResult {
         ensureLoaded(configKey, screenInstanceId)
         val slot = StorageSlotKey(configKey, screenInstanceId)
-        return mutexFor(slot).withLock {
+        val result = mutexFor(slot).withLock {
             val existing = bindSessions[slot]
             if (existing != null && !existing.finished.get()) {
                 return@withLock NormalScreenBindResult.Bound(
@@ -354,6 +430,179 @@ public class NormalScreenAdCoordinator(
                     NormalScreenBindResult.Bound(session, bound)
                 }
             }
+        }
+        logBindResult(configKey, screenInstanceId, result, replace = false)
+        return result
+    }
+
+    /**
+     * If a newer READY object exists for the slot while one is already SHOWING,
+     * reserves and marks the new object SHOWING and returns it as [NormalScreenBindResult.Bound]
+     * with [NormalScreenBindResult.Bound.previousSession] set.
+     *
+     * Caller must swap the UI to the new session first, then [unbind] the previous
+     * session with [NormalScreenUnbindMode.CONSUME] so the old sdkHandle is destroyed
+     * only after the swap (no blank gap).
+     *
+     * If nothing newer is READY, returns the existing bound session (or Rejected).
+     */
+    public suspend fun replaceBoundIfReady(
+        configKey: ConfigKey,
+        screenInstanceId: ScreenInstanceId,
+    ): NormalScreenBindResult {
+        val slot = StorageSlotKey(configKey, screenInstanceId)
+        val result = mutexFor(slot).withLock {
+            val current = bindSessions[slot]?.takeIf { !it.finished.get() }
+            val peeked = storage.peekReady(configKey, screenInstanceId)
+            if (peeked == null) {
+                return@withLock if (current != null) {
+                    NormalScreenBindResult.Bound(
+                        session = current,
+                        state = states[slot] ?: NormalScreenSlotState(
+                            configKey = configKey,
+                            screenInstanceId = screenInstanceId,
+                            status = NormalScreenLoadStatus.BOUND,
+                            storedAd = current.storedAd,
+                            reservationId = current.reservationId,
+                        ),
+                    )
+                } else {
+                    NormalScreenBindResult.Rejected(
+                        reason = "no ready replacement",
+                        state = states[slot],
+                    )
+                }
+            }
+            if (current != null && peeked.objectId == current.objectId) {
+                return@withLock NormalScreenBindResult.Bound(
+                    session = current,
+                    state = states[slot] ?: NormalScreenSlotState(
+                        configKey = configKey,
+                        screenInstanceId = screenInstanceId,
+                        status = NormalScreenLoadStatus.BOUND,
+                        storedAd = current.storedAd,
+                        reservationId = current.reservationId,
+                    ),
+                )
+            }
+
+            when (val reserved = storage.reserveNormal(configKey, screenInstanceId)) {
+                is ReserveResult.Rejected -> {
+                    if (current != null) {
+                        NormalScreenBindResult.Bound(
+                            session = current,
+                            state = states[slot] ?: NormalScreenSlotState(
+                                configKey = configKey,
+                                screenInstanceId = screenInstanceId,
+                                status = NormalScreenLoadStatus.BOUND,
+                                storedAd = current.storedAd,
+                                reservationId = current.reservationId,
+                            ),
+                        )
+                    } else {
+                        NormalScreenBindResult.Rejected(reserved.reason, states[slot])
+                    }
+                }
+                is ReserveResult.Accepted -> {
+                    if (reserved.storedAd.sourceConfigKey != configKey ||
+                        reserved.storedAd.screenInstanceId != screenInstanceId
+                    ) {
+                        storage.release(reserved.reservation.reservationId)
+                        return@withLock if (current != null) {
+                            NormalScreenBindResult.Bound(
+                                session = current,
+                                state = states[slot] ?: NormalScreenSlotState(
+                                    configKey = configKey,
+                                    screenInstanceId = screenInstanceId,
+                                    status = NormalScreenLoadStatus.BOUND,
+                                    storedAd = current.storedAd,
+                                    reservationId = current.reservationId,
+                                ),
+                            )
+                        } else {
+                            NormalScreenBindResult.Rejected(
+                                reason = "reserved object placement mismatch",
+                                state = states[slot],
+                            )
+                        }
+                    }
+                    if (!storage.markShowing(reserved.reservation.reservationId)) {
+                        storage.release(reserved.reservation.reservationId)
+                        return@withLock if (current != null) {
+                            NormalScreenBindResult.Bound(
+                                session = current,
+                                state = states[slot] ?: NormalScreenSlotState(
+                                    configKey = configKey,
+                                    screenInstanceId = screenInstanceId,
+                                    status = NormalScreenLoadStatus.BOUND,
+                                    storedAd = current.storedAd,
+                                    reservationId = current.reservationId,
+                                ),
+                            )
+                        } else {
+                            NormalScreenBindResult.Rejected(
+                                reason = "unable to markShowing",
+                                state = states[slot],
+                            )
+                        }
+                    }
+                    refillScheduler.requestRefill(slot)
+                    val previous = current?.also {
+                        // Detach from slot map but leave finished=false so caller can CONSUME.
+                        bindSessions.remove(slot, it)
+                    }
+                    val session = NormalScreenBindSession(
+                        configKey = configKey,
+                        screenInstanceId = screenInstanceId,
+                        reservationId = reserved.reservation.reservationId,
+                        objectId = reserved.storedAd.objectId,
+                        storedAd = reserved.storedAd,
+                        boundAtMillis = clock.nowMillis(),
+                    )
+                    bindSessions[slot] = session
+                    val bound = NormalScreenSlotState(
+                        configKey = configKey,
+                        screenInstanceId = screenInstanceId,
+                        status = NormalScreenLoadStatus.BOUND,
+                        storedAd = reserved.storedAd,
+                        reservationId = reserved.reservation.reservationId,
+                    )
+                    states[slot] = bound
+                    NormalScreenBindResult.Bound(
+                        session = session,
+                        state = bound,
+                        previousSession = previous,
+                    )
+                }
+            }
+        }
+        if (result is NormalScreenBindResult.Bound && result.previousSession != null) {
+            logBindResult(configKey, screenInstanceId, result, replace = true)
+        }
+        return result
+    }
+
+    private fun logBindResult(
+        configKey: ConfigKey,
+        screenInstanceId: ScreenInstanceId,
+        result: NormalScreenBindResult,
+        replace: Boolean,
+    ) {
+        when (result) {
+            is NormalScreenBindResult.Bound -> AdsModuleLog.bind(
+                configKey = configKey,
+                screenInstanceId = screenInstanceId,
+                obtained = true,
+                objectId = result.session.objectId.value,
+                replace = replace,
+            )
+            is NormalScreenBindResult.Rejected -> AdsModuleLog.bind(
+                configKey = configKey,
+                screenInstanceId = screenInstanceId,
+                obtained = false,
+                reason = result.reason,
+                replace = replace,
+            )
         }
     }
 

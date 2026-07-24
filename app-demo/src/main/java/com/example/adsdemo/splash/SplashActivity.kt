@@ -4,6 +4,8 @@ import android.animation.ValueAnimator
 import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.Window
@@ -29,6 +31,8 @@ class SplashActivity : AppCompatActivity() {
     private var confirmedPrimaryShowSessionId: String? = null
     private var progressStartedForSession: String? = null
     private var fallbackProgressStarted = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var pendingConfirmRunnable: Runnable? = null
 
     private val graph get() = (application as AdsDemoApplication).graph
 
@@ -78,6 +82,7 @@ class SplashActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        cancelPendingConfirm()
         progressAnimator?.cancel()
         progressAnimator = null
         dismissLoadingAdsDialog()
@@ -112,6 +117,7 @@ class SplashActivity : AppCompatActivity() {
             SplashStage.LANGUAGE_LOADING,
             SplashStage.TERMINAL,
             -> {
+                cancelPendingConfirm()
                 snapProgressToFull()
                 dismissLoadingAdsDialog()
             }
@@ -119,6 +125,7 @@ class SplashActivity : AppCompatActivity() {
                 if (loadingAdsDialog?.isShowing == true &&
                     snap.stage != SplashStage.PRIMARY_PRESHOW
                 ) {
+                    cancelPendingConfirm()
                     dismissLoadingAdsDialog()
                 }
             }
@@ -204,30 +211,41 @@ class SplashActivity : AppCompatActivity() {
 
     private fun showLoadingAdsDialogAndConfirm(sessionId: SplashSessionId) {
         if (confirmedPrimaryShowSessionId == sessionId.value) return
-        if (loadingAdsDialog?.isShowing == true) return
+        if (pendingConfirmRunnable != null) return
 
-        val dialog = Dialog(this).apply {
-            requestWindowFeature(Window.FEATURE_NO_TITLE)
-            setCancelable(false)
-            setCanceledOnTouchOutside(false)
-            setContentView(
-                LayoutInflater.from(this@SplashActivity)
-                    .inflate(R.layout.dialog_splash_loading_ads, null),
-            )
+        if (loadingAdsDialog?.isShowing != true) {
+            val dialog = Dialog(this).apply {
+                requestWindowFeature(Window.FEATURE_NO_TITLE)
+                setCancelable(false)
+                setCanceledOnTouchOutside(false)
+                setContentView(
+                    LayoutInflater.from(this@SplashActivity)
+                        .inflate(R.layout.dialog_splash_loading_ads, null),
+                )
+            }
+            loadingAdsDialog = dialog
+            dialog.show()
         }
-        loadingAdsDialog = dialog
-        dialog.show()
-        dialog.window?.decorView?.post {
-            if (isFinishing || isDestroyed) return@post
-            if (confirmedPrimaryShowSessionId == sessionId.value) return@post
+
+        val runnable = Runnable {
+            pendingConfirmRunnable = null
+            if (isFinishing || isDestroyed) return@Runnable
+            if (confirmedPrimaryShowSessionId == sessionId.value) return@Runnable
             val current = graph.splashCoordinator.snapshot.value
             if (current?.sessionId != sessionId || current.stage != SplashStage.PRIMARY_PRESHOW) {
-                return@post
+                return@Runnable
             }
             if (graph.splashCoordinator.confirmPrimaryShow(sessionId)) {
                 confirmedPrimaryShowSessionId = sessionId.value
             }
         }
+        pendingConfirmRunnable = runnable
+        mainHandler.postDelayed(runnable, SPLASH_LOADING_ADS_DELAY_MILLIS)
+    }
+
+    private fun cancelPendingConfirm() {
+        pendingConfirmRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingConfirmRunnable = null
     }
 
     private fun dismissLoadingAdsDialog() {
@@ -238,5 +256,6 @@ class SplashActivity : AppCompatActivity() {
     private companion object {
         private const val KEY_SESSION_ID = "splash_session_id"
         private const val DEFAULT_TIMEOUT_MILLIS = 30_000L
+        private const val SPLASH_LOADING_ADS_DELAY_MILLIS = 1_000L
     }
 }

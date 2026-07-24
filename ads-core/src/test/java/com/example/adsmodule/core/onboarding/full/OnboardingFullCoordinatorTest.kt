@@ -230,6 +230,80 @@ class OnboardingFullCoordinatorTest {
     }
 
     @Test
+    fun noFill_skipsImmediatelyWithNoFillExit() = runTest {
+        val env = Env(this)
+        // Do not preload — begin() rejects and must skip without waiting close-delay.
+        val fullSession = FullSessionId("full-nofill")
+        val start = env.coordinator.startOrAttach(
+            fullSessionId = fullSession,
+            onboardingSessionId = OnboardingSessionId("onb-nofill"),
+            fullIndex = 1,
+            targetLogicalPage = 3,
+        )
+        assertTrue(start is OnboardingFullStartResult.Skipped)
+        val snap = env.coordinator.snapshot.value!!
+        assertTrue(snap.adUnavailable)
+        assertEquals(FullExitSource.NO_FILL, snap.winningExitSource)
+        assertEquals(FullActivityPhase.COMPLETED, snap.phase)
+        // begin() rejected with empty storage — no READY object to show.
+        assertFalse(
+            env.normalAds.hasReadyObject(
+                OnboardingFullConfigKeys.adsKey(1),
+                OnboardingFullScreenInstances.full1,
+            ),
+        )
+        val result = env.coordinator.consumeExitResult(fullSession)
+        assertNotNull(result)
+        assertEquals(FullExitSource.NO_FILL, result!!.exitSource)
+        assertEquals(3, result.targetLogicalPage)
+    }
+
+    @Test
+    fun exit_parksShowingFull_soReopenCanReserveSameObject() = runTest {
+        val env = Env(this)
+        env.preloadAndReady(1)
+        val firstSession = FullSessionId("full-1a")
+        val start = env.coordinator.startOrAttach(
+            fullSessionId = firstSession,
+            onboardingSessionId = OnboardingSessionId("onb-1"),
+            fullIndex = 1,
+            targetLogicalPage = 3,
+        ) as OnboardingFullStartResult.Attached
+        val shownObjectId = start.snapshot.objectId
+        assertNotNull(shownObjectId)
+        advanceTimeBy(2_000L)
+        runCurrent()
+        assertTrue(env.coordinator.onSwipeForward(firstSession))
+        assertNotNull(env.coordinator.consumeExitResult(firstSession))
+
+        // Parked SHOWING→READY: same object available for back/swipe-back re-open.
+        assertTrue(env.coordinator.hasReadyAd(1))
+        assertFalse(env.coordinator.isConfirmedNoFill(1))
+
+        val secondSession = FullSessionId("full-1b")
+        val reopen = env.coordinator.startOrAttach(
+            fullSessionId = secondSession,
+            onboardingSessionId = OnboardingSessionId("onb-1"),
+            fullIndex = 1,
+            targetLogicalPage = 2,
+        )
+        assertTrue(reopen is OnboardingFullStartResult.Attached)
+        assertEquals(
+            shownObjectId,
+            (reopen as OnboardingFullStartResult.Attached).snapshot.objectId,
+        )
+    }
+
+    @Test
+    fun awaitReadyOrTerminal_trueWhenPreloadCompletes() = runTest {
+        val env = Env(this)
+        env.coordinator.ensurePreloaded(1)
+        assertTrue(env.coordinator.awaitReadyOrTerminal(1, timeoutMillis = 5_000L))
+        assertTrue(env.coordinator.hasReadyAd(1))
+        assertFalse(env.coordinator.isConfirmedNoFill(1))
+    }
+
+    @Test
     fun hostedObject_preservesSourceMetadata() = runTest {
         val env = Env(this)
         env.preloadAndReady(1)

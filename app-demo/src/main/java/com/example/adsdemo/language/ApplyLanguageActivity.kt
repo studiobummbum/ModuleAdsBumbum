@@ -56,6 +56,7 @@ class ApplyLanguageActivity : AppCompatActivity() {
                         else -> getString(R.string.apply_language_status_named, displayName)
                     }
                     val placement = snap.placements.dup
+                    viewModel.tryReplaceBound(LanguagePlacement.DUP)
                     val ad = viewModel.boundAd(LanguagePlacement.DUP)?.session?.storedAd
                         ?: placement?.storedAd
                     if (

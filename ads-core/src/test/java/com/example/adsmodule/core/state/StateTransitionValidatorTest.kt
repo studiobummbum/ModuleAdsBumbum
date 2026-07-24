@@ -20,6 +20,8 @@ class StateTransitionValidatorTest {
         assertTrue(StateTransitionValidator.isValid(AdSlotState.RESERVED, AdSlotState.READY))
         assertTrue(StateTransitionValidator.isValid(AdSlotState.SHOWING, AdSlotState.CONSUMED))
         assertTrue(StateTransitionValidator.isValid(AdSlotState.SHOWING, AdSlotState.FAILED))
+        // Park shown Full natives: SHOWING → READY via Release.
+        assertTrue(StateTransitionValidator.isValid(AdSlotState.SHOWING, AdSlotState.READY))
         assertTrue(StateTransitionValidator.isValid(AdSlotState.CONSUMED, AdSlotState.LOADING))
         assertTrue(StateTransitionValidator.isValid(AdSlotState.CONSUMED, AdSlotState.IDLE))
         assertTrue(StateTransitionValidator.isValid(AdSlotState.FAILED, AdSlotState.LOADING))
@@ -32,7 +34,6 @@ class StateTransitionValidatorTest {
         assertFalse(StateTransitionValidator.isValid(AdSlotState.READY, AdSlotState.SHOWING))
         assertFalse(StateTransitionValidator.isValid(AdSlotState.READY, AdSlotState.LOADING))
         assertFalse(StateTransitionValidator.isValid(AdSlotState.RESERVED, AdSlotState.CONSUMED))
-        assertFalse(StateTransitionValidator.isValid(AdSlotState.SHOWING, AdSlotState.READY))
         assertFalse(StateTransitionValidator.isValid(AdSlotState.EXPIRED, AdSlotState.READY))
         assertFalse(StateTransitionValidator.isValid(AdSlotState.DISABLED, AdSlotState.LOADING))
         assertFalse(StateTransitionValidator.isValid(AdSlotState.IDLE, AdSlotState.READY))
@@ -50,5 +51,9 @@ class StateTransitionValidatorTest {
 
         val expireReserved = AdsStateReducer.reduce(AdSlotState.RESERVED, AdsStateEvent.Expire)
         assertTrue(expireReserved is TransitionResult.Rejected)
+
+        val parkShowing = AdsStateReducer.reduce(AdSlotState.SHOWING, AdsStateEvent.Release)
+        assertTrue(parkShowing is TransitionResult.Accepted)
+        assertTrue((parkShowing as TransitionResult.Accepted).to == AdSlotState.READY)
     }
 }

@@ -384,6 +384,7 @@ class FullActivityGestureSimulatorFragment : BaseDebugInspectorFragment() {
             FullExitSource.SWIPE_FORWARD -> api.simulateFullSwipe(session)
             FullExitSource.CLOSE_X -> api.simulateFullCloseX(session)
             FullExitSource.AUTO_SKIP -> api.simulateFullAutoSkip(session)
+            FullExitSource.NO_FILL -> api.simulateFullAutoSkip(session)
         }
         setText("source=$source accepted=$ok\n${api.onboardingFullSnapshot()}")
     }

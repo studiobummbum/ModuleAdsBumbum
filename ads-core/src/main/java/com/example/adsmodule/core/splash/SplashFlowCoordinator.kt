@@ -13,6 +13,7 @@ import com.example.adsmodule.core.config.BooleanConfigValue
 import com.example.adsmodule.core.config.FullScreenTimingConfig
 import com.example.adsmodule.core.config.SplashScreenConfig
 import com.example.adsmodule.core.config.SplashSkipConfig
+import com.example.adsmodule.core.debug.AdsModuleLog
 import com.example.adsmodule.core.fullscreen.FullscreenAdKind
 import com.example.adsmodule.core.fullscreen.FullscreenShowCoordinator
 import com.example.adsmodule.core.fullscreen.FullscreenShowEvent
@@ -118,7 +119,6 @@ public class SplashFlowCoordinator(
         nativeFullGate.set(false)
         primaryAdvanceGate.set(false)
         effectClaimed.clear()
-        pendingNativeFullLaunch = null
         pendingPrimaryShow = null
         primaryShowRequestId = null
 
@@ -182,6 +182,7 @@ public class SplashFlowCoordinator(
     /**
      * UI confirms the pre-show dialog and asks the coordinator to present the primary fullscreen ad.
      * No-op unless [SplashStage.PRIMARY_PRESHOW] is active for [sessionId].
+     * Inter/App Open → SDK fullscreen show; Native → Native Full Splash Activity.
      */
     public fun confirmPrimaryShow(sessionId: SplashSessionId): Boolean {
         val pending = pendingPrimaryShow ?: return false
@@ -190,12 +191,30 @@ public class SplashFlowCoordinator(
         if (current.sessionId != sessionId) return false
         if (current.stage != SplashStage.PRIMARY_PRESHOW) return false
         pendingPrimaryShow = null
-        executePrimaryShow(
-            sessionId = pending.sessionId,
-            screenInstanceId = pending.screenInstanceId,
-            primary = pending.primary,
-            kind = pending.kind,
+        AdsModuleLog.i(
+            "SPLASH SHOW confirm kind=${pending.kind} " +
+                "objectId=${pending.primary.storedAd?.objectId?.value ?: "-"} " +
+                "screen=${pending.screenInstanceId.value}",
         )
+        when (pending.kind) {
+            FullscreenAdKind.NATIVE_FULL_SPLASH,
+            FullscreenAdKind.NATIVE_FULL_ONBOARDING,
+            -> advanceToNativeFull(
+                sessionId = pending.sessionId,
+                reason = "mixed-native-primary",
+                supersedeShowRequestId = null,
+                preferPrimaryNative = true,
+            )
+            FullscreenAdKind.INTERSTITIAL,
+            FullscreenAdKind.APP_OPEN,
+            FullscreenAdKind.INTER_ONBOARDING,
+            -> executePrimaryShow(
+                sessionId = pending.sessionId,
+                screenInstanceId = pending.screenInstanceId,
+                primary = pending.primary,
+                kind = pending.kind,
+            )
+        }
         return true
     }
 
@@ -248,17 +267,7 @@ public class SplashFlowCoordinator(
             when {
                 primary?.status == SplashLoadStatus.READY &&
                     primary.storedAd != null -> {
-                    when (primary.storedAd.sourceType) {
-                        AdFormat.NATIVE,
-                        AdFormat.NATIVE_FULLSCREEN,
-                        -> advanceToNativeFull(
-                            sessionId = sessionId,
-                            reason = "mixed-native-primary",
-                            supersedeShowRequestId = null,
-                            preferPrimaryNative = true,
-                        )
-                        else -> showPrimaryFullscreen(sessionId, screenInstanceId, primary)
-                    }
+                    showPrimaryFullscreen(sessionId, screenInstanceId, primary)
                 }
                 else -> {
                     // Wait until loads settle or screen timeout / READY appears.
@@ -297,17 +306,7 @@ public class SplashFlowCoordinator(
         }
         val primary = ready.placements[SplashPlacement.INTER_SPLASH]
         if (primary?.status == SplashLoadStatus.READY && primary.storedAd != null) {
-            when (primary.storedAd.sourceType) {
-                AdFormat.NATIVE,
-                AdFormat.NATIVE_FULLSCREEN,
-                -> advanceToNativeFull(
-                    sessionId = sessionId,
-                    reason = "mixed-native-primary",
-                    supersedeShowRequestId = null,
-                    preferPrimaryNative = true,
-                )
-                else -> showPrimaryFullscreen(sessionId, screenInstanceId, primary)
-            }
+            showPrimaryFullscreen(sessionId, screenInstanceId, primary)
         } else {
             advanceToNativeFull(
                 sessionId = sessionId,
@@ -323,6 +322,10 @@ public class SplashFlowCoordinator(
         screenInstanceId: ScreenInstanceId,
         configSnapshot: AdsConfigSnapshot,
     ) = coroutineScope {
+        AdsModuleLog.i(
+            "SPLASH PRELOAD start placements=[INTER_SPLASH,NATIVE_SPLASH,BANNER_UFO,NATIVE_FULL_SPLASH] " +
+                "screen=${screenInstanceId.value}",
+        )
         val jobs = listOf(
             SplashPlacement.INTER_SPLASH to INTER_SPLASH_KEY,
             SplashPlacement.NATIVE_SPLASH to NATIVE_SPLASH_KEY,
@@ -398,7 +401,9 @@ public class SplashFlowCoordinator(
                 cycleId = cycleId,
             ),
         )
+        AdsModuleLog.preloadStart(configKey, screenInstanceId)
 
+        val loadStartedAt = clock.nowMillis()
         val result = loader.load(
             WeightedLoadRequest(
                 cycleId = cycleId,
@@ -407,6 +412,7 @@ public class SplashFlowCoordinator(
                 snapshot = configSnapshot,
             ),
         )
+        val elapsedMs = (clock.nowMillis() - loadStartedAt).coerceAtLeast(0L)
         if (activeSessionId != sessionId) {
             if (result is WeightedLoadResult.Success) {
                 result.storedAd.sdkHandle.destroy()
@@ -418,6 +424,17 @@ public class SplashFlowCoordinator(
             is WeightedLoadResult.Success -> {
                 when (val put = storage.putReady(result.storedAd)) {
                     is PutResult.Accepted -> {
+                        AdsModuleLog.readyOk(
+                            configKey = configKey,
+                            screenInstanceId = screenInstanceId,
+                            objectId = put.storedAd.objectId.value,
+                            elapsedMs = elapsedMs,
+                        )
+                        AdsModuleLog.i(
+                            "SPLASH READY placement=$placement " +
+                                AdsModuleLog.placement(configKey, screenInstanceId) +
+                                " objectId=${put.storedAd.objectId.value} elapsedMs=$elapsedMs",
+                        )
                         val reserved = if (
                             placement == SplashPlacement.NATIVE_SPLASH ||
                             placement == SplashPlacement.BANNER_UFO
@@ -446,6 +463,9 @@ public class SplashFlowCoordinator(
                     }
                     is PutResult.Rejected -> {
                         result.storedAd.sdkHandle.destroy()
+                        AdsModuleLog.readyFail(
+                            configKey, screenInstanceId, "FAILED", elapsedMs, put.reason,
+                        )
                         setPlacement(
                             placement,
                             SplashPlacementState(
@@ -459,44 +479,60 @@ public class SplashFlowCoordinator(
                     }
                 }
             }
-            is WeightedLoadResult.Disabled -> setPlacement(
-                placement,
-                SplashPlacementState(
-                    placement = placement,
-                    configKey = configKey,
-                    status = SplashLoadStatus.DISABLED,
-                    cycleId = cycleId,
-                    terminalReason = result.reason,
-                ),
-            )
-            is WeightedLoadResult.Cancelled -> setPlacement(
-                placement,
-                SplashPlacementState(
-                    placement = placement,
-                    configKey = configKey,
-                    status = SplashLoadStatus.CANCELLED,
-                    cycleId = cycleId,
-                    terminalReason = result.reason,
-                ),
-            )
+            is WeightedLoadResult.Disabled -> {
+                AdsModuleLog.readyFail(
+                    configKey, screenInstanceId, "DISABLED", elapsedMs, result.reason.name,
+                )
+                setPlacement(
+                    placement,
+                    SplashPlacementState(
+                        placement = placement,
+                        configKey = configKey,
+                        status = SplashLoadStatus.DISABLED,
+                        cycleId = cycleId,
+                        terminalReason = result.reason,
+                    ),
+                )
+            }
+            is WeightedLoadResult.Cancelled -> {
+                AdsModuleLog.readyFail(
+                    configKey, screenInstanceId, "CANCELLED", elapsedMs, result.reason.name,
+                )
+                setPlacement(
+                    placement,
+                    SplashPlacementState(
+                        placement = placement,
+                        configKey = configKey,
+                        status = SplashLoadStatus.CANCELLED,
+                        cycleId = cycleId,
+                        terminalReason = result.reason,
+                    ),
+                )
+            }
             is WeightedLoadResult.Exhausted,
             is WeightedLoadResult.TotalTimeout,
             is WeightedLoadResult.MissingConfig,
-            -> setPlacement(
-                placement,
-                SplashPlacementState(
-                    placement = placement,
-                    configKey = configKey,
-                    status = if (result is WeightedLoadResult.Exhausted) {
-                        SplashLoadStatus.EXHAUSTED
-                    } else {
-                        SplashLoadStatus.FAILED
-                    },
-                    cycleId = cycleId,
-                    terminalReason = result.reason,
-                    reason = result.reason.name,
-                ),
-            )
+            -> {
+                val status = if (result is WeightedLoadResult.Exhausted) {
+                    SplashLoadStatus.EXHAUSTED
+                } else {
+                    SplashLoadStatus.FAILED
+                }
+                AdsModuleLog.readyFail(
+                    configKey, screenInstanceId, status.name, elapsedMs, result.reason.name,
+                )
+                setPlacement(
+                    placement,
+                    SplashPlacementState(
+                        placement = placement,
+                        configKey = configKey,
+                        status = status,
+                        cycleId = cycleId,
+                        terminalReason = result.reason,
+                        reason = result.reason.name,
+                    ),
+                )
+            }
         }
     }
 
@@ -512,8 +548,11 @@ public class SplashFlowCoordinator(
         val kind = when (stored.sourceType) {
             AdFormat.INTERSTITIAL -> FullscreenAdKind.INTERSTITIAL
             AdFormat.APP_OPEN -> FullscreenAdKind.APP_OPEN
+            AdFormat.NATIVE,
+            AdFormat.NATIVE_FULLSCREEN,
+            -> FullscreenAdKind.NATIVE_FULL_SPLASH
             else -> {
-                advanceToNativeFull(sessionId, "unexpected primary format", null, true)
+                advanceToNativeFull(sessionId, "unexpected primary format", null, false)
                 return
             }
         }
@@ -533,6 +572,10 @@ public class SplashFlowCoordinator(
             )
         }
         emitStage(sessionId, SplashStage.PRIMARY_PRESHOW)
+        AdsModuleLog.i(
+            "SPLASH BIND obtained=true placement=INTER_SPLASH kind=$kind " +
+                "objectId=${stored.objectId.value} screen=${screenInstanceId.value}",
+        )
     }
 
     private fun executePrimaryShow(
@@ -791,6 +834,7 @@ public class SplashFlowCoordinator(
     private fun navigateToLanguage(sessionId: SplashSessionId, reason: String) {
         if (activeSessionId != sessionId) return
         if (!languageGate.compareAndSet(false, true)) return
+        releasePendingNativeFullLaunch()
         nativeFullController.cancel(sessionId)
         update {
             it.copy(
@@ -857,11 +901,22 @@ public class SplashFlowCoordinator(
         screenTimeoutJob = null
         primaryShowJob = null
         pendingPrimaryShow = null
+        releasePendingNativeFullLaunch()
         activeSessionId?.let { nativeFullController.cancel(it) }
         activeSessionId = null
         if (!keepSnapshot) {
             mutableSnapshot.value = null
         }
+    }
+
+    /**
+     * Finishes a hosted Native Full that was begun but never consumed by the Activity,
+     * so [GlobalFullscreenLock] cannot block Onboarding Full later.
+     */
+    private fun releasePendingNativeFullLaunch() {
+        val pending = pendingNativeFullLaunch ?: return
+        pendingNativeFullLaunch = null
+        hostedFullscreen.finish(pending.hostedSession, HostedFullscreenOutcome.FAILED)
     }
 
     private data class PendingPrimaryShow(

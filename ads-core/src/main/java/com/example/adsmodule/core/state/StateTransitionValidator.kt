@@ -26,6 +26,7 @@ public object StateTransitionValidator {
         AdSlotState.SHOWING to setOf(
             AdSlotState.CONSUMED,
             AdSlotState.FAILED,
+            AdSlotState.READY,
         ),
         AdSlotState.CONSUMED to setOf(
             AdSlotState.LOADING,

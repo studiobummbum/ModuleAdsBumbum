@@ -19,6 +19,9 @@ public enum class AdMobNativeLayoutStyle {
 
 /**
  * Binds an [AdMobNativeLoadedAd] into a container using the module layout.
+ *
+ * Sticky swap: when replacing an already-visible native, the new view is added
+ * first and only then are previous children removed so the container never blanks.
  */
 public class AdMobNativeRenderer {
     public fun bind(
@@ -28,7 +31,6 @@ public class AdMobNativeRenderer {
     ): Boolean {
         val nativeHandle = handle as? AdMobNativeLoadedAd ?: return false
         val nativeAd = nativeHandle.peekNativeAd() ?: return false
-        container.removeAllViews()
         val layoutRes = when (style) {
             AdMobNativeLayoutStyle.DEFAULT -> R.layout.view_admob_native
             AdMobNativeLayoutStyle.MEDIUM_BOTTOM -> R.layout.view_admob_native_medium
@@ -48,7 +50,12 @@ public class AdMobNativeRenderer {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             )
         }
+        // Keep old children until the new ad view is attached to avoid UI jump.
+        val previousCount = container.childCount
         container.addView(adView, layoutParams)
+        for (index in previousCount - 1 downTo 0) {
+            container.removeViewAt(index)
+        }
         container.visibility = View.VISIBLE
         return true
     }
