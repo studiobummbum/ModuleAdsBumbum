@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -13,7 +14,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
 import com.example.adsdemo.R
 import com.example.adsdemo.databinding.ActivityLanguageBinding
-import com.example.adsdemo.sdk.SelectingNormalNativeAdBinder
+import com.example.adsdemo.sdk.AdMobNormalNativeAdBinder
 import com.example.adsmodule.core.language.DemoLanguage
 import com.example.adsmodule.core.language.LanguageNavigationEffect
 import com.example.adsmodule.core.language.LanguagePlacement
@@ -22,15 +23,12 @@ import kotlinx.coroutines.launch
 
 class LanguageActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLanguageBinding
-    private val binder: NormalNativeAdBinder by lazy {
-        SelectingNormalNativeAdBinder(
-            (application as AdsDemoApplication).graph.sdkBackend,
-        )
-    }
+    private val binder: NormalNativeAdBinder by lazy { AdMobNormalNativeAdBinder() }
     private var boundObjectId: String? = null
     private var restoredSessionId: String? = null
     private var restoredLanguageTag: String? = null
     private var renderedLanguages: Boolean = false
+    private var pendingSelection: DemoLanguage? = null
 
     private val viewModel: LanguageFlowViewModel by viewModels {
         LanguageFlowViewModel.factory(
@@ -48,16 +46,29 @@ class LanguageActivity : AppCompatActivity() {
         binding = ActivityLanguageBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        if (pendingSelection == null && !restoredLanguageTag.isNullOrBlank()) {
+            pendingSelection = viewModel.languages.find { it.tag == restoredLanguageTag }
+        }
+
+        binding.languageContinue.setOnClickListener {
+            val selected = pendingSelection ?: return@setOnClickListener
+            viewModel.selectLanguage(selected)
+        }
+
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.onLanguageSelectOpened()
                 viewModel.snapshot.collect { snap ->
                     if (snap == null) return@collect
                     if (!renderedLanguages) {
-                        renderLanguages(snap.selectedLanguage)
+                        if (pendingSelection == null) {
+                            pendingSelection = snap.selectedLanguage
+                        }
+                        renderLanguages(pendingSelection)
                         renderedLanguages = true
+                        binding.languageContinue.isEnabled = pendingSelection != null
                     } else {
-                        updateSelectionMarks(snap.selectedLanguage?.tag)
+                        updateSelectionMarks(pendingSelection?.tag)
                     }
                     val placement = snap.placements.select
                     val ad = viewModel.boundAd(LanguagePlacement.SELECT)?.session?.storedAd
@@ -76,6 +87,7 @@ class LanguageActivity : AppCompatActivity() {
                                 ad,
                                 title = "Language",
                             )
+                            binding.nativeLanguageContainer.visibility = View.VISIBLE
                             boundObjectId = objectId
                         }
                     }
@@ -103,12 +115,19 @@ class LanguageActivity : AppCompatActivity() {
         viewModel.languages.forEach { language ->
             val row = inflater.inflate(R.layout.item_language, binding.languageList, false)
             row.findViewById<TextView>(R.id.language_name).text = language.displayName
-            val mark = row.findViewById<TextView>(R.id.language_selected_mark)
-            mark.visibility =
-                if (selected?.tag == language.tag) View.VISIBLE else View.GONE
+            val mark = row.findViewById<ImageView>(R.id.language_selected_mark)
+            mark.setImageResource(
+                if (selected?.tag == language.tag) {
+                    R.drawable.ic_radio_checked
+                } else {
+                    R.drawable.ic_radio_unchecked
+                },
+            )
             row.tag = language.tag
             row.setOnClickListener {
-                viewModel.selectLanguage(language)
+                pendingSelection = language
+                updateSelectionMarks(language.tag)
+                binding.languageContinue.isEnabled = true
             }
             binding.languageList.addView(row)
         }
@@ -117,18 +136,21 @@ class LanguageActivity : AppCompatActivity() {
     private fun updateSelectionMarks(selectedTag: String?) {
         for (index in 0 until binding.languageList.childCount) {
             val row = binding.languageList.getChildAt(index)
-            val mark = row.findViewById<TextView>(R.id.language_selected_mark)
-            mark.visibility =
-                if (row.tag == selectedTag) View.VISIBLE else View.GONE
+            val mark = row.findViewById<ImageView>(R.id.language_selected_mark)
+            mark.setImageResource(
+                if (row.tag == selectedTag) {
+                    R.drawable.ic_radio_checked
+                } else {
+                    R.drawable.ic_radio_unchecked
+                },
+            )
         }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         viewModel.sessionIdOrNull()?.value?.let { outState.putString(KEY_SESSION_ID, it) }
-        viewModel.snapshot.value?.selectedLanguage?.tag?.let {
-            outState.putString(KEY_LANGUAGE_TAG, it)
-        }
+        pendingSelection?.tag?.let { outState.putString(KEY_LANGUAGE_TAG, it) }
     }
 
     companion object {

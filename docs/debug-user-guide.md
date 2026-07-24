@@ -11,15 +11,14 @@ Module: `:ads-debug` — **debug builds only**.
 
 ## SDK backend switch
 
-Destination: **SDK Backend (Fake / AdMob Test)**.
+Destination: **SDK Backend (AdMob Test / AdMob)**.
 
 | Backend | Behavior |
 | --- | --- |
-| Fake | Deterministic Fake adapters + Fake binders (**debug only**) |
-| AdMob Test | Remaps every load to Google sample units (`AdMobRuntimeMode.TEST`) |
-| AdMob | Uses Remote Config `adunit` as-is (`AdMobRuntimeMode.PRODUCTION`). Release builds force this. |
+| AdMob Test | Remaps every load to Google sample / **test** ad units (`AdMobRuntimeMode.TEST`). Default for debug/emulator. |
+| AdMob | Uses Remote Config `adunit` as-is (`AdMobRuntimeMode.PRODUCTION`). Put **publisher** units here for production. Release builds force this. |
 
-Preference is stored by `DemoSdkBackendStore`. Changing backend typically requires process restart so `AdsDemoGraph` rebuilds adapters.
+Preference is stored by `DemoSdkBackendStore`. Changing backend typically requires process restart so `AdsDemoGraph` rebuilds adapters. Legacy stored value `Fake` is treated as AdMob Test.
 
 Bundled demo RC already contains Google sample units — see [production-weight-table.md](production-weight-table.md).
 
@@ -41,7 +40,7 @@ Bundled demo RC already contains Google sample units — see [production-weight-
 | Full Activity Gesture Simulator | Swipe / X / auto-skip gates |
 | Event Log | Ring-buffer debug events |
 | Native Layout Gallery | Native layout variants |
-| SDK Backend | Fake vs AdMob Test |
+| SDK Backend | AdMob Test vs AdMob (publisher RC units) |
 
 ## What to verify in debug
 
@@ -51,9 +50,9 @@ Bundled demo RC already contains Google sample units — see [production-weight-
 4. Splash skip timer starts only after Inter/App Open **show** success.
 5. Full 1/2: swipe does not steal CTA/media gestures; first exit wins.
 6. System Back on Full uses CLOSE_X policy (after X delay).
+7. Emulator fill uses real AdMob test creatives (not placeholder Fake UI).
 
 ## Safety
 
 - Do not ship `:ads-debug` on release variants.
-- Do not treat Fake success/fail scripts as production fill rates.
-- Do not hardcode production `ca-app-pub-…` units into the debug gallery.
+- Do not hardcode production `ca-app-pub-…` units into the debug gallery — put publisher units in Remote Config when going live.

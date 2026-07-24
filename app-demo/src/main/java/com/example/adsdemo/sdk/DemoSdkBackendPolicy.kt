@@ -2,7 +2,7 @@ package com.example.adsdemo.sdk
 
 /**
  * Resolves which [DemoSdkBackend] is allowed for the current build.
- * Release never runs Fake; always AdMob (RC units as-is).
+ * Release always uses AdMob (RC units as-is — publisher units when provisioned).
  */
 object DemoSdkBackendPolicy {
     fun effective(
@@ -17,9 +17,7 @@ object DemoSdkBackendPolicy {
         debuggable: Boolean,
         requested: DemoSdkBackend,
     ): DemoSdkBackend? {
-        if (!debuggable) {
-            return if (requested == DemoSdkBackend.Fake) null else DemoSdkBackend.AdMob
-        }
+        if (!debuggable) return DemoSdkBackend.AdMob
         return requested
     }
 }

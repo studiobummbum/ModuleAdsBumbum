@@ -3,35 +3,47 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
+    android:layout_marginBottom="12dp"
     android:clickable="true"
     android:focusable="true"
-    android:minHeight="48dp"
-    app:cardElevation="0dp">
+    android:minHeight="56dp"
+    app:cardBackgroundColor="@color/demo_surface_white"
+    app:cardCornerRadius="33dp"
+    app:cardElevation="0dp"
+    app:strokeWidth="0dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:minHeight="48dp"
+        android:minHeight="56dp"
         android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="12dp">
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp">
+
+        <ImageView
+            android:id="@+id/language_flag"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:contentDescription="@string/language_flag_content_description"
+            android:src="@drawable/ic_flag_placeholder" />
 
         <TextView
             android:id="@+id/language_name"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
             android:layout_weight="1"
-            android:textAppearance="?attr/textAppearanceBodyLarge" />
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textColor="@color/demo_text_primary"
+            android:textSize="14sp" />
 
-        <TextView
+        <ImageView
             android:id="@+id/language_selected_mark"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/language_selected_mark"
-            android:textAppearance="?attr/textAppearanceTitleMedium"
-            android:visibility="gone" />
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:contentDescription="@string/language_selected_mark"
+            android:src="@drawable/ic_radio_unchecked" />
     </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>

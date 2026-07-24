@@ -57,7 +57,8 @@ Bundled `adunit` values are **Google official sample / test units** (same set as
 | Banner | `ca-app-pub-3940256097505524/6300978111` |
 | App ID | `ca-app-pub-3940256097505524~3347511713` |
 
-Host apps replace these with real AdMob (or mediation) units in production Remote Config.  
-`DemoSdkBackend.AdMob` uses RC units as-is; `AdMobTest` remaps every request to the samples above.
+Host apps replace these with real AdMob (or mediation) **publisher** units in production Remote Config.  
+`DemoSdkBackend.AdMob` / `AdMobRuntimeMode.PRODUCTION` uses RC units as-is.  
+`DemoSdkBackend.AdMobTest` remaps every request to the Google sample units above (emulator / QA).
 
 Demo app ID (manifest): `ca-app-pub-3940256097505524~3347511713`.

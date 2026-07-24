@@ -27,9 +27,8 @@
     <string name="debug_long_title">This is a very long native ad headline used to stress layout wrapping and truncation behavior across small medium and full templates</string>
     <string name="debug_long_body">Body copy that is intentionally long so inspectors and gallery screens can validate multiline wrapping, ellipsize rules, and overlay placement when creative text exceeds the usual short demo strings used in happy-path fixtures.</string>
     <string name="debug_sdk_backend_title">SDK Backend</string>
-    <string name="debug_sdk_backend_fake">Fake</string>
-    <string name="debug_sdk_backend_admob_test">AdMob Test (remap to Google samples)</string>
-    <string name="debug_sdk_backend_admob">AdMob (Remote Config units as-is)</string>
+    <string name="debug_sdk_backend_admob_test">AdMob Test (Google sample units)</string>
+    <string name="debug_sdk_backend_admob">AdMob (Remote Config units — publisher when ready)</string>
     <string name="debug_sdk_backend_hint">Current selection: %1$s (applied on next process start)</string>
     <string name="debug_sdk_backend_restart_required">Saved. Force-stop / restart the app to apply.</string>
 </resources>

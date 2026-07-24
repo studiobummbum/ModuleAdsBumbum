@@ -15,8 +15,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
+import com.example.adsdemo.R
 import com.example.adsdemo.databinding.ActivityOnboardingFullBinding
-import com.example.adsdemo.sdk.SelectingOnboardingFullNativeBinder
+import com.example.adsdemo.sdk.AdMobOnboardingFullNativeBinder
 import com.example.adsmodule.core.FullSessionId
 import com.example.adsmodule.core.OnboardingSessionId
 import com.example.adsmodule.core.onboarding.full.FullActivityPhase
@@ -30,9 +31,7 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityOnboardingFullBinding
     private val binder: OnboardingFullNativeBinder by lazy {
-        SelectingOnboardingFullNativeBinder(
-            (application as AdsDemoApplication).graph.sdkBackend,
-        )
+        AdMobOnboardingFullNativeBinder()
     }
     private var gestureDetector: FullGestureDetector? = null
     private var excludedViews: List<View> = emptyList()
@@ -129,6 +128,15 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
                     binding.onboardingFullClose.visibility =
                         if (closeVisible) View.VISIBLE else View.INVISIBLE
                     binding.onboardingFullClose.isEnabled = closeVisible
+                    val autoRem = snap.remainingAutoSkipMillis
+                    if (closeVisible && autoRem != null) {
+                        val seconds = ((autoRem + 999L) / 1000L).toInt().coerceAtLeast(0)
+                        binding.onboardingFullAutoSkip.visibility = View.VISIBLE
+                        binding.onboardingFullAutoSkip.text =
+                            getString(R.string.onboarding_full_auto_skip, seconds)
+                    } else {
+                        binding.onboardingFullAutoSkip.visibility = View.INVISIBLE
+                    }
                     if (snap.storedAd != null &&
                         binding.onboardingFullAdContainer.childCount == 0
                     ) {
@@ -192,6 +200,7 @@ abstract class OnboardingFullActivity : AppCompatActivity() {
             container = binding.onboardingFullAdContainer,
             storedAd = storedAd,
             title = getString(titleRes),
+            fullIndex = fullIndex,
         )
         excludedViews = bound.clickableAssets + binding.onboardingFullClose
     }

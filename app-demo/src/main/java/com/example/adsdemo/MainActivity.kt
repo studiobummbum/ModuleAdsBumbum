@@ -4,8 +4,8 @@ import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import com.example.adsdemo.databinding.ActivityMainBinding
+import com.example.adsmodule.admob.AdMobAdsSdkModule
 import com.example.adsmodule.core.AdsCoreStatus
-import com.example.adsmodule.fake.FakeAdsSdkModule
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -18,7 +18,7 @@ class MainActivity : AppCompatActivity() {
         binding.projectStatusText.text = getString(
             R.string.project_status_value,
             AdsCoreStatus.description,
-            FakeAdsSdkModule.status,
+            AdMobAdsSdkModule.status,
         )
         // Debug entry is wired only in the debug source set (DebugNavInstaller).
         binding.openDebugDashboardButton.visibility = View.GONE

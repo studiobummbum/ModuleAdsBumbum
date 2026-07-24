@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -12,7 +14,7 @@ import com.example.adsdemo.AdsDemoApplication
 import com.example.adsdemo.R
 import com.example.adsdemo.databinding.FragmentOnboardingBinding
 import com.example.adsdemo.language.NormalNativeAdBinder
-import com.example.adsdemo.sdk.SelectingNormalNativeAdBinder
+import com.example.adsdemo.sdk.AdMobNormalNativeAdBinder
 import com.example.adsmodule.core.normal.NormalScreenBindResult
 import com.example.adsmodule.core.normal.NormalScreenUnbindMode
 import com.example.adsmodule.core.storage.OnboardingScreenInstances
@@ -22,9 +24,7 @@ import kotlinx.coroutines.launch
 class OnboardingFragment : Fragment() {
     private var binding: FragmentOnboardingBinding? = null
     private val binder: NormalNativeAdBinder by lazy {
-        SelectingNormalNativeAdBinder(
-            (requireContext().applicationContext as AdsDemoApplication).graph.sdkBackend,
-        )
+        AdMobNormalNativeAdBinder()
     }
     private var boundLogicalPage: Int? = null
 
@@ -45,11 +45,16 @@ class OnboardingFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         val page = logicalPage
         val binding = binding ?: return
-        binding.onboardingPageTitle.text = getString(R.string.onboarding_page_title, page)
+        binding.onboardingHero.setImageResource(heroForPage(page))
+        binding.onboardingPageTitle.text = captionForPage(page)
         binding.onboardingPageBody.text = getString(
             R.string.onboarding_page_body,
             OnboardingScreenInstances.page(page).value,
         )
+        renderDots(binding, page)
+        binding.onboardingNextLink.setOnClickListener {
+            (activity as? OnboardingActivity)?.forwardFromFragment()
+        }
 
         val graph = (requireActivity().application as AdsDemoApplication).graph
         viewLifecycleOwner.lifecycleScope.launch {
@@ -75,6 +80,45 @@ class OnboardingFragment : Fragment() {
                 }
             }
         }
+    }
+
+    private fun renderDots(binding: FragmentOnboardingBinding, activePage: Int) {
+        binding.onboardingDots.removeAllViews()
+        val size = resources.getDimensionPixelSize(R.dimen.onboarding_dot_size)
+        val margin = resources.getDimensionPixelSize(R.dimen.onboarding_dot_margin)
+        for (index in 1..4) {
+            val dot = ImageView(requireContext()).apply {
+                layoutParams = ViewGroup.MarginLayoutParams(size, size).also {
+                    it.marginEnd = margin
+                }
+                setImageDrawable(
+                    ContextCompat.getDrawable(
+                        requireContext(),
+                        if (index == activePage) {
+                            R.drawable.bg_onboard_dot_active
+                        } else {
+                            R.drawable.bg_onboard_dot_inactive
+                        },
+                    ),
+                )
+                contentDescription = getString(R.string.onboarding_page_indicator, index, 4)
+            }
+            binding.onboardingDots.addView(dot)
+        }
+    }
+
+    private fun heroForPage(page: Int): Int = when (page) {
+        1 -> R.drawable.img_onboard_1
+        2 -> R.drawable.img_onboard_2
+        3 -> R.drawable.img_onboard_3
+        else -> R.drawable.img_onboard_4
+    }
+
+    private fun captionForPage(page: Int): String = when (page) {
+        1 -> getString(R.string.onboarding_caption_1)
+        2 -> getString(R.string.onboarding_caption_2)
+        3 -> getString(R.string.onboarding_caption_3)
+        else -> getString(R.string.onboarding_caption_4)
     }
 
     private fun releaseAd(page: Int) {

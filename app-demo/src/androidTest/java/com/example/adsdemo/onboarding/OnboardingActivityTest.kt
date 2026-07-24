@@ -1,7 +1,6 @@
 package com.example.adsdemo.onboarding
 
 import android.content.Intent
-import android.widget.TextView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -36,8 +35,7 @@ class OnboardingActivityTest {
             scenario.onActivity { activity ->
                 val pager = activity.findViewById<ViewPager2>(R.id.onboarding_pager)
                 assertEquals(4, pager.adapter?.itemCount)
-                val indicator = activity.findViewById<TextView>(R.id.onboarding_page_indicator)
-                assertTrue(indicator.text.toString().contains("Page 1"))
+                assertNotNull(activity.findViewById(R.id.onboarding_next))
             }
         }
     }
@@ -49,8 +47,6 @@ class OnboardingActivityTest {
             scenario.onActivity { activity ->
                 val app = activity.application as AdsDemoApplication
                 assertEquals(2, app.graph.onboardingCoordinator.snapshot.value?.currentLogicalPage)
-                val indicator = activity.findViewById<TextView>(R.id.onboarding_page_indicator)
-                assertTrue(indicator.text.toString().contains("Page 2"))
             }
         }
     }
@@ -115,8 +111,7 @@ class OnboardingActivityTest {
                 assertTrue(
                     app.graph.onboardingCoordinator.snapshot.value!!.activePages.size in 1..4,
                 )
-                val indicator = activity.findViewById<TextView>(R.id.onboarding_page_indicator)
-                assertTrue(indicator.text.toString().contains("Page 2"))
+                assertNotNull(activity.findViewById(R.id.onboarding_pager))
             }
         }
     }

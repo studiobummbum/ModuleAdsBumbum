@@ -37,7 +37,7 @@ public class AdMobNativeAdapter(
         if (request.format != format) {
             return AdLoadResult.Failure("Adapter for $format cannot load ${request.format}")
         }
-        AdMobSdkInitializer.ensureInitialized(appContext)
+        AdMobSdkInitializer.awaitInitialized(appContext)
         val resolved = resolver.resolve(format, request.adUnit)
         return AdMobMainThread.onMain {
             suspendCancellableCoroutine { continuation ->

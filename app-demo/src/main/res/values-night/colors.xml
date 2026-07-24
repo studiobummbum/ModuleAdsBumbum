@@ -4,4 +4,16 @@
     <color name="brand_on_primary">#003258</color>
     <color name="brand_primary_container">#00497D</color>
     <color name="brand_on_primary_container">#D1E4FF</color>
+
+    <color name="demo_bg">#101820</color>
+    <color name="demo_primary">#2485F6</color>
+    <color name="demo_primary_track">#1A3A5C</color>
+    <color name="demo_ad_media">#3A3A3A</color>
+    <color name="demo_ad_badge">#6B6B6B</color>
+    <color name="demo_text_primary">#F0F7FF</color>
+    <color name="demo_text_secondary">#B0B0B0</color>
+    <color name="demo_surface_white">#1E1E1E</color>
+    <color name="demo_scrim">#99000000</color>
+    <color name="demo_auto_skip_bg">#52000000</color>
+    <color name="demo_dot_inactive">#546E7A</color>
 </resources>

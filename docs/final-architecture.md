@@ -9,12 +9,10 @@ Stack: Kotlin, XML + ViewBinding, Activity / Fragment / ViewPager2, Coroutines +
 app-demo
   ├─ debugImplementation → ads-debug
   ├─ implementation → ads-core
-  ├─ implementation → ads-sdk-fake
   └─ implementation → ads-sdk-admob → Google Mobile Ads SDK
 
 ads-debug → ads-core
 ads-core  → ads-sdk-core   (API contracts only; no Activity/View/GMA)
-ads-sdk-fake  → ads-sdk-core
 ads-sdk-admob → ads-sdk-core + play-services-ads
 ```
 
@@ -24,9 +22,9 @@ ads-sdk-admob → ads-sdk-core + play-services-ads
 | --- | --- | --- |
 | `ads-core` | `ads-sdk-core`, coroutines, kotlinx.serialization | Concrete Activities, Views, GMA |
 | `ads-sdk-core` | coroutines | GMA, app UI |
-| `ads-sdk-fake` / `ads-sdk-admob` | `ads-sdk-core` (+ GMA for AdMob) | `ads-core` business logic |
+| `ads-sdk-admob` | `ads-sdk-core` + GMA | `ads-core` business logic |
 | `ads-debug` | `ads-core` | Release classpath of `app-demo` |
-| `app-demo` | all of the above (debug UI only via `debugImplementation`) | — |
+| `app-demo` | ads-core, ads-sdk-admob; ads-debug via `debugImplementation` | Fake Ads SDK |
 
 ## Core runtime pieces
 
@@ -98,7 +96,8 @@ Rules:
 
 ## Demo wiring note
 
-- Debug: select Fake / AdMob Test / AdMob via debug dashboard (`DemoSdkBackendStore`).
-- Release: forced `DemoSdkBackend.AdMob` (RC units as-is; Fake not selectable).
+- Debug: **AdMob Test** (Google sample units) or **AdMob** (RC `adunit` as-is) via debug dashboard (`DemoSdkBackendStore`).
+- Release: forced `DemoSdkBackend.AdMob` — replace bundled sample units with **publisher** units in Remote Config.
+- Go-live: same AdMob adapters; only swap `adunit` / App ID. No Fake Ads path.
 - Bundled sample inventory + weight matrix: [production-weight-table.md](production-weight-table.md).
 - Closed policies (System Back, audience, units): [open-decisions.md](open-decisions.md).

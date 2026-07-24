@@ -8,7 +8,7 @@ Skill: `.cursor/skills/android-ads-module-engineering/references/07-test.md`
 
 | Gate | Result |
 | --- | --- |
-| Unit tests (`ads-core`, `ads-sdk-core`, `ads-sdk-fake`, `ads-sdk-admob`, `app-demo` debug + release) | **PASS** |
+| Unit tests (`ads-core`, `ads-sdk-core`, `ads-sdk-admob`, `app-demo` debug + release) | **PASS** |
 | `:app-demo:lintDebug` | **PASS** |
 | `:app-demo:assembleDebug` | **PASS** |
 | `:app-demo:assembleRelease` | **PASS** (no custom signingConfig) |
@@ -21,7 +21,7 @@ Skill: `.cursor/skills/android-ads-module-engineering/references/07-test.md`
 | --- | --- |
 | Deterministic IDs | `ads-core/.../testsupport/SequentialIdGenerator.kt` |
 | Mutable clock | `ads-core/.../testsupport/AdvanceableClock.kt` |
-| Fake SDK + `StandardTestDispatcher` | `ads-core/.../testsupport/FakeSdkTestSupport.kt` (+ `FakeClock` / `SequentialFakeObjectIdGenerator` in `:ads-sdk-fake`) |
+| Deterministic adapters in JVM tests | `ads-core/src/test/.../fake` (+ `FakeSdkTestSupport`) — not a product module |
 | JSON fixtures (RC-001, mixed, splash skip) | `ads-core/.../config/TestConfigFixtures.kt` |
 | Release unit tests enabled (AGP 9) | `gradle.properties` → `android.onlyEnableUnitTestForTheTestedBuildType=false` |
 
@@ -61,7 +61,7 @@ Skill: `.cursor/skills/android-ads-module-engineering/references/07-test.md`
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-.\gradlew.bat :ads-core:testDebugUnitTest :ads-sdk-core:testDebugUnitTest :ads-sdk-fake:testDebugUnitTest :ads-sdk-admob:testDebugUnitTest :app-demo:testDebugUnitTest :app-demo:testReleaseUnitTest
+.\gradlew.bat :ads-core:testDebugUnitTest :ads-sdk-core:testDebugUnitTest :ads-sdk-admob:testDebugUnitTest :app-demo:testDebugUnitTest :app-demo:testReleaseUnitTest
 .\gradlew.bat :app-demo:lintDebug :app-demo:assembleDebug :app-demo:assembleRelease
 .\gradlew.bat :app-demo:connectedDebugAndroidTest
 py -3 .cursor/skills/android-ads-module-engineering/scripts/validate_ads_config.py ads-core/src/main/assets/original-remote-config

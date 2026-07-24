@@ -6,18 +6,22 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Release classpath policy: Fake is never the effective backend.
+ * Release classpath policy: always AdMob (RC / publisher units as-is).
  */
 class ReleaseSdkBackendPolicyTest {
     @Test
-    fun release_effectiveBackend_isAlwaysAdMob() {
-        assertEquals(
-            DemoSdkBackend.AdMob,
-            DemoSdkBackendPolicy.effective(debuggable = false, stored = DemoSdkBackend.Fake),
-        )
+    fun release_forcesAdMob_regardlessOfStoredPreference() {
         assertEquals(
             DemoSdkBackend.AdMob,
             DemoSdkBackendPolicy.effective(debuggable = false, stored = DemoSdkBackend.AdMobTest),
+        )
+        assertEquals(
+            DemoSdkBackend.AdMob,
+            DemoSdkBackendPolicy.effective(debuggable = false, stored = DemoSdkBackend.AdMob),
+        )
+        assertEquals(
+            DemoSdkBackend.AdMob,
+            DemoSdkBackendPolicy.effective(debuggable = false, stored = null),
         )
     }
 }

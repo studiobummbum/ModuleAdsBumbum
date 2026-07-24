@@ -76,16 +76,15 @@ class OnboardingActivity : AppCompatActivity() {
                     if (binding.onboardingPager.currentItem != adapterIndex) {
                         binding.onboardingPager.setCurrentItem(adapterIndex, false)
                     }
-                    binding.onboardingPageIndicator.text = getString(
-                        R.string.onboarding_page_indicator,
-                        snap.currentLogicalPage,
-                        snap.activePages.size,
-                    )
                     viewModel.onPageVisible(snap.currentLogicalPage)
                     maybeLaunchPendingEffect(snap.sessionId.value, snap.pendingEffect)
                 }
             }
         }
+    }
+
+    internal fun forwardFromFragment() {
+        handleForward()
     }
 
     private fun handleForward() {

@@ -1,16 +1,11 @@
 package com.example.adsdemo.sdk
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class DemoSdkBackendPolicyTest {
     @Test
-    fun release_forcesAdMob_evenIfFakeStored() {
-        assertEquals(
-            DemoSdkBackend.AdMob,
-            DemoSdkBackendPolicy.effective(debuggable = false, stored = DemoSdkBackend.Fake),
-        )
+    fun release_forcesAdMob() {
         assertEquals(
             DemoSdkBackend.AdMob,
             DemoSdkBackendPolicy.effective(debuggable = false, stored = DemoSdkBackend.AdMobTest),
@@ -22,14 +17,10 @@ class DemoSdkBackendPolicyTest {
     }
 
     @Test
-    fun debug_defaultsToAdMobTest_andAllowsFake() {
+    fun debug_defaultsToAdMobTest() {
         assertEquals(
             DemoSdkBackend.AdMobTest,
             DemoSdkBackendPolicy.effective(debuggable = true, stored = null),
-        )
-        assertEquals(
-            DemoSdkBackend.Fake,
-            DemoSdkBackendPolicy.effective(debuggable = true, stored = DemoSdkBackend.Fake),
         )
         assertEquals(
             DemoSdkBackend.AdMob,
@@ -38,10 +29,7 @@ class DemoSdkBackendPolicyTest {
     }
 
     @Test
-    fun sanitizeWrite_releaseRejectsFake() {
-        assertNull(
-            DemoSdkBackendPolicy.sanitizeWrite(debuggable = false, requested = DemoSdkBackend.Fake),
-        )
+    fun sanitizeWrite_releaseForcesAdMob() {
         assertEquals(
             DemoSdkBackend.AdMob,
             DemoSdkBackendPolicy.sanitizeWrite(
@@ -49,5 +37,12 @@ class DemoSdkBackendPolicyTest {
                 requested = DemoSdkBackend.AdMobTest,
             ),
         )
+    }
+
+    @Test
+    fun fromStorage_mapsLegacyFakeToAdMobTest() {
+        assertEquals(DemoSdkBackend.AdMobTest, DemoSdkBackend.fromStorage("Fake"))
+        assertEquals(DemoSdkBackend.AdMobTest, DemoSdkBackend.fromStorage(null))
+        assertEquals(DemoSdkBackend.AdMob, DemoSdkBackend.fromStorage("AdMob"))
     }
 }

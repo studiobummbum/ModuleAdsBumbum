@@ -3,27 +3,26 @@ package com.example.adsdemo.sdk
 /**
  * Demo SDK backend selection. Persisted; applied at process start.
  *
- * Release builds never run [Fake] — [DemoSdkBackendStore] forces [AdMob].
+ * Debug defaults to [AdMobTest] (Google sample / test ad units).
+ * Release builds always use [AdMob] (Remote Config `adunit` as-is — swap to publisher units there).
  */
 enum class DemoSdkBackend {
-    /** Deterministic Fake adapters (debug only). */
-    Fake,
-
     /** AdMob with official Google test unit remapping. */
     AdMobTest,
 
     /**
      * AdMob using Remote Config `adunit` as-is ([com.example.adsmodule.admob.AdMobRuntimeMode.PRODUCTION]).
-     * Bundled demo RC uses Google sample units until real inventory is provisioned.
+     * Replace bundled sample units with publisher units for production.
      */
     AdMob,
     ;
 
     companion object {
         fun fromStorage(value: String?): DemoSdkBackend = when (value) {
-            Fake.name -> Fake
-            AdMobTest.name -> AdMobTest
             AdMob.name -> AdMob
+            AdMobTest.name -> AdMobTest
+            // Legacy Fake preference → AdMob Test.
+            "Fake" -> AdMobTest
             else -> AdMobTest
         }
     }

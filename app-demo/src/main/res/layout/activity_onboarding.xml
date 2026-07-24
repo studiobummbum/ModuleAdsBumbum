@@ -3,44 +3,29 @@
     android:id="@+id/onboarding_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/demo_bg"
     android:fitsSystemWindows="true">
 
     <LinearLayout
         android:id="@+id/onboarding_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_gravity="center_horizontal"
-        android:maxWidth="840dp"
-        android:orientation="vertical"
-        android:padding="16dp">
-
-        <TextView
-            android:id="@+id/onboarding_title"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/onboarding_title"
-            android:textAppearance="?attr/textAppearanceHeadlineSmall" />
-
-        <TextView
-            android:id="@+id/onboarding_page_indicator"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textAppearance="?attr/textAppearanceBodyMedium" />
+        android:orientation="vertical">
 
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/onboarding_pager"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_marginTop="12dp"
             android:layout_weight="1" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/onboarding_next"
+            style="@style/Widget.AdsDemo.ContinueButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:minHeight="48dp"
+            android:layout_height="44dp"
+            android:layout_marginHorizontal="27dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="16dp"
             android:text="@string/onboarding_next" />
     </LinearLayout>
 </FrameLayout>

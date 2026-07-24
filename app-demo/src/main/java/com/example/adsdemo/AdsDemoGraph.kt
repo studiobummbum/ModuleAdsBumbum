@@ -46,10 +46,7 @@ import com.example.adsmodule.core.splash.SplashStage
 import com.example.adsmodule.core.storage.AdStorage
 import com.example.adsmodule.core.turnback.AdClickTokenStore
 import com.example.adsmodule.core.turnback.AtomicBorrowService
-import com.example.adsmodule.fake.FakeAdsSdkController
-import com.example.adsmodule.fake.FakeAdsSdkModule
 import com.example.adsmodule.sdk.AdPresentationHost
-import com.example.adsmodule.sdk.AdSdkAdapter
 import com.example.adsmodule.sdk.AdSdkAdapterRegistry
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
@@ -75,20 +72,12 @@ class AdsDemoGraph(
         Log.i(TAG, "sdkBackend=$sdkBackend")
     }
 
-    val fakeController: FakeAdsSdkController = FakeAdsSdkController()
-    private val fakeSdk = FakeAdsSdkModule.create(fakeController)
     private val admobRuntimeMode: AdMobRuntimeMode = when (sdkBackend) {
         DemoSdkBackend.AdMob -> AdMobRuntimeMode.PRODUCTION
-        DemoSdkBackend.AdMobTest, DemoSdkBackend.Fake -> AdMobRuntimeMode.TEST
+        DemoSdkBackend.AdMobTest -> AdMobRuntimeMode.TEST
     }
-    private val admobSdk = if (sdkBackend != DemoSdkBackend.Fake) {
-        AdMobAdsSdkModule.create(application, admobRuntimeMode)
-    } else {
-        null
-    }
-    private val selectedAdapters: List<AdSdkAdapter> =
-        admobSdk?.adapters ?: fakeSdk.adapters
-    private val adapters = AdSdkAdapterRegistry.create(selectedAdapters)
+    private val admobSdk = AdMobAdsSdkModule.create(application, admobRuntimeMode)
+    private val adapters = AdSdkAdapterRegistry.create(admobSdk.adapters)
 
     private val currentConfig = InMemoryConfigDataSource()
     private val lastKnownGood = InMemoryLastKnownGoodConfigStore()
@@ -290,12 +279,7 @@ class AdsDemoGraph(
         processLifecycleBridge.start()
         AdsDebugApiProvider.install(debugApi)
         bridgeDebugEvents()
-        val sdkStatus = if (admobSdk != null) {
-            AdMobAdsSdkModule.status
-        } else {
-            FakeAdsSdkModule.status
-        }
-        debugApi.log("sdk", "backend=$sdkBackend status=$sdkStatus")
+        debugApi.log("sdk", "backend=$sdkBackend status=${AdMobAdsSdkModule.status}")
         appScope.launch {
             configRepository.refresh()
             val snapshot = configRepository.snapshots.value ?: return@launch

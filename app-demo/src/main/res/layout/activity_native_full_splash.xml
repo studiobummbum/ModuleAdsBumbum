@@ -2,38 +2,107 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/demo_bg"
     android:fitsSystemWindows="true">
 
     <LinearLayout
         android:id="@+id/native_full_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="24dp">
+        android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/native_full_title"
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <ImageView
+                android:id="@+id/native_full_hero"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@string/native_full_splash_title"
+                android:scaleType="centerCrop"
+                android:src="@drawable/img_onboard_full_1" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <TextView
+                    android:id="@+id/native_full_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="@string/native_full_splash_title"
+                    android:textColor="@android:color/white"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/native_full_body"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="@android:color/white"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="@string/native_full_splash_title"
-            android:textAppearance="?attr/textAppearanceHeadlineSmall" />
+            android:background="@color/demo_surface_white"
+            android:orientation="vertical"
+            android:paddingTop="12dp"
+            android:paddingBottom="16dp">
 
-        <TextView
-            android:id="@+id/native_full_body"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:gravity="center"
-            android:textAppearance="?attr/textAppearanceBodyMedium" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="16dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/native_full_cta"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="@string/native_full_cta" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_ad_badge"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="4dp"
+                    android:text="@string/ad_label"
+                    android:textAllCaps="true"
+                    android:textColor="@color/brand_on_primary"
+                    android:textSize="8sp" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/native_full_splash_title"
+                    android:textColor="@color/demo_text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/native_full_cta"
+                style="@style/Widget.AdsDemo.ContinueButton"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginHorizontal="27dp"
+                android:layout_marginTop="12dp"
+                android:text="@string/native_full_cta" />
+        </LinearLayout>
     </LinearLayout>
 
     <ImageButton
@@ -44,7 +113,9 @@
         android:layout_margin="8dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/native_full_close"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:padding="4dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_close_circle"
         android:visibility="invisible" />
 
     <TextView
@@ -52,7 +123,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:background="#99000000"
+        android:background="@color/demo_scrim"
         android:padding="8dp"
         android:textColor="@android:color/white"
         android:visibility="gone" />

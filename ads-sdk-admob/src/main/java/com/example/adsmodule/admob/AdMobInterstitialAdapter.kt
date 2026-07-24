@@ -28,7 +28,7 @@ public class AdMobInterstitialAdapter(
         if (request.format != AdFormat.INTERSTITIAL) {
             return AdLoadResult.Failure("Adapter for INTERSTITIAL cannot load ${request.format}")
         }
-        AdMobSdkInitializer.ensureInitialized(appContext)
+        AdMobSdkInitializer.awaitInitialized(appContext)
         val resolved = resolver.resolve(AdFormat.INTERSTITIAL, request.adUnit)
         android.util.Log.i(
             "AdMobInterstitial",

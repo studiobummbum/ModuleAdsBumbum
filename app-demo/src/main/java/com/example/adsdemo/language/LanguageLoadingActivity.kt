@@ -2,6 +2,10 @@ package com.example.adsdemo.language
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
@@ -10,7 +14,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
 import com.example.adsdemo.R
 import com.example.adsdemo.databinding.ActivityLanguageLoadingBinding
-import com.example.adsdemo.sdk.SelectingNormalNativeAdBinder
+import com.example.adsdemo.sdk.AdMobNormalNativeAdBinder
 import com.example.adsmodule.core.language.LanguageNavigationEffect
 import com.example.adsmodule.core.language.LanguagePlacement
 import com.example.adsmodule.core.normal.NormalScreenLoadStatus
@@ -19,12 +23,11 @@ import kotlinx.coroutines.launch
 class LanguageLoadingActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLanguageLoadingBinding
     private val binder: NormalNativeAdBinder by lazy {
-        SelectingNormalNativeAdBinder(
-            (application as AdsDemoApplication).graph.sdkBackend,
-        )
+        AdMobNormalNativeAdBinder()
     }
     private var boundObjectId: String? = null
     private var restoredSessionId: String? = null
+    private var renderedSkeleton: Boolean = false
 
     private val viewModel: LanguageFlowViewModel by viewModels {
         LanguageFlowViewModel.factory(
@@ -46,11 +49,15 @@ class LanguageLoadingActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.snapshot.collect { snap ->
                     if (snap == null) return@collect
+                    if (!renderedSkeleton) {
+                        renderSkeletonList()
+                        renderedSkeleton = true
+                    }
                     val remaining = snap.loadingTimer.remainingMillis
                     binding.languageLoadingStatus.text = buildString {
-                        append(getString(R.string.language_loading_status))
+                        append(getString(R.string.language_loading_label))
                         if (remaining != null) {
-                            append('\n')
+                            append(" · ")
                             append("${remaining}ms")
                         }
                     }
@@ -71,6 +78,7 @@ class LanguageLoadingActivity : AppCompatActivity() {
                                 ad,
                                 title = "Language Loading",
                             )
+                            binding.nativeLanguageLoadingContainer.visibility = View.VISIBLE
                             boundObjectId = objectId
                         }
                     }
@@ -85,6 +93,20 @@ class LanguageLoadingActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+
+    private fun renderSkeletonList() {
+        binding.languageLoadingList.removeAllViews()
+        val inflater = LayoutInflater.from(this)
+        viewModel.languages.forEach { language ->
+            val row = inflater.inflate(R.layout.item_language, binding.languageLoadingList, false)
+            row.findViewById<TextView>(R.id.language_name).text = language.displayName
+            row.findViewById<ImageView>(R.id.language_selected_mark)
+                .setImageResource(R.drawable.ic_radio_unchecked)
+            row.isClickable = false
+            row.isFocusable = false
+            binding.languageLoadingList.addView(row)
         }
     }
 

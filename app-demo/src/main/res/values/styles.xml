@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Widget.AdsDemo.ContinueButton" parent="Widget.Material3.Button">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textColor">@color/brand_on_primary</item>
+        <item name="backgroundTint">@color/demo_primary</item>
+        <item name="cornerRadius">55dp</item>
+    </style>
+
+    <style name="Widget.AdsDemo.LanguagePill" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardBackgroundColor">@color/demo_surface_white</item>
+        <item name="cardElevation">0dp</item>
+        <item name="cardCornerRadius">33dp</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+</resources>

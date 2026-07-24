@@ -30,13 +30,6 @@
             android:layout_marginTop="16dp">
 
             <RadioButton
-                android:id="@+id/sdk_backend_fake"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="48dp"
-                android:text="@string/debug_sdk_backend_fake" />
-
-            <RadioButton
                 android:id="@+id/sdk_backend_admob_test"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

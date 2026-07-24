@@ -2,6 +2,10 @@ package com.example.adsdemo.language
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
@@ -10,7 +14,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.adsdemo.AdsDemoApplication
 import com.example.adsdemo.R
 import com.example.adsdemo.databinding.ActivityLanguageDupBinding
-import com.example.adsdemo.sdk.SelectingNormalNativeAdBinder
+import com.example.adsdemo.sdk.AdMobNormalNativeAdBinder
 import com.example.adsmodule.core.language.LanguageNavigationEffect
 import com.example.adsmodule.core.language.LanguagePlacement
 import com.example.adsmodule.core.normal.NormalScreenLoadStatus
@@ -19,13 +23,12 @@ import kotlinx.coroutines.launch
 class LanguageDupActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLanguageDupBinding
     private val binder: NormalNativeAdBinder by lazy {
-        SelectingNormalNativeAdBinder(
-            (application as AdsDemoApplication).graph.sdkBackend,
-        )
+        AdMobNormalNativeAdBinder()
     }
     private var boundObjectId: String? = null
     private var restoredSessionId: String? = null
     private var restoredLanguageTag: String? = null
+    private var renderedLanguages: Boolean = false
 
     private val viewModel: LanguageFlowViewModel by viewModels {
         LanguageFlowViewModel.factory(
@@ -54,11 +57,14 @@ class LanguageDupActivity : AppCompatActivity() {
                     if (snap == null) return@collect
                     val selected = snap.selectedLanguage
                     binding.languageDupSelected.text =
-                        getString(
-                            R.string.language_dup_selected,
-                            selected?.displayName ?: selected?.tag.orEmpty(),
-                        )
+                        selected?.displayName ?: getString(R.string.language_default)
                     binding.languageDupNext.isEnabled = selected != null
+                    if (!renderedLanguages) {
+                        renderLanguages(selected?.tag)
+                        renderedLanguages = true
+                    } else {
+                        updateSelectionMarks(selected?.tag)
+                    }
                     val placement = snap.placements.dup
                     val ad = viewModel.boundAd(LanguagePlacement.DUP)?.session?.storedAd
                         ?: placement?.storedAd
@@ -76,6 +82,7 @@ class LanguageDupActivity : AppCompatActivity() {
                                 ad,
                                 title = "Language Dup",
                             )
+                            binding.nativeLanguageDupContainer.visibility = View.VISIBLE
                             boundObjectId = objectId
                         }
                     }
@@ -94,6 +101,41 @@ class LanguageDupActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+
+    private fun renderLanguages(selectedTag: String?) {
+        binding.languageDupList.removeAllViews()
+        val inflater = LayoutInflater.from(this)
+        viewModel.languages.forEach { language ->
+            val row = inflater.inflate(R.layout.item_language, binding.languageDupList, false)
+            row.findViewById<TextView>(R.id.language_name).text = language.displayName
+            val mark = row.findViewById<ImageView>(R.id.language_selected_mark)
+            mark.setImageResource(
+                if (selectedTag == language.tag) {
+                    R.drawable.ic_radio_checked
+                } else {
+                    R.drawable.ic_radio_unchecked
+                },
+            )
+            row.tag = language.tag
+            row.isClickable = false
+            row.isFocusable = false
+            binding.languageDupList.addView(row)
+        }
+    }
+
+    private fun updateSelectionMarks(selectedTag: String?) {
+        for (index in 0 until binding.languageDupList.childCount) {
+            val row = binding.languageDupList.getChildAt(index)
+            val mark = row.findViewById<ImageView>(R.id.language_selected_mark)
+            mark.setImageResource(
+                if (row.tag == selectedTag) {
+                    R.drawable.ic_radio_checked
+                } else {
+                    R.drawable.ic_radio_unchecked
+                },
+            )
         }
     }
 

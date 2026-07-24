@@ -31,7 +31,7 @@ public class AdMobBannerAdapter(
         if (request.format != AdFormat.BANNER) {
             return AdLoadResult.Failure("Adapter for BANNER cannot load ${request.format}")
         }
-        AdMobSdkInitializer.ensureInitialized(appContext)
+        AdMobSdkInitializer.awaitInitialized(appContext)
         val resolved = resolver.resolve(AdFormat.BANNER, request.adUnit)
         return AdMobMainThread.onMain {
             suspendCancellableCoroutine { continuation ->

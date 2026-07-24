@@ -34,7 +34,7 @@ Phase 18 gate results: unit tests (incl. `:ads-sdk-admob`) PASS; `lintDebug` PAS
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-.\gradlew.bat :ads-core:testDebugUnitTest :ads-sdk-core:testDebugUnitTest :ads-sdk-fake:testDebugUnitTest :ads-sdk-admob:testDebugUnitTest :app-demo:testDebugUnitTest :app-demo:testReleaseUnitTest
+.\gradlew.bat :ads-core:testDebugUnitTest :ads-sdk-core:testDebugUnitTest :ads-sdk-admob:testDebugUnitTest :app-demo:testDebugUnitTest :app-demo:testReleaseUnitTest
 .\gradlew.bat :app-demo:lintDebug :app-demo:assembleDebug :app-demo:assembleRelease
 .\gradlew.bat :app-demo:connectedDebugAndroidTest
 ```

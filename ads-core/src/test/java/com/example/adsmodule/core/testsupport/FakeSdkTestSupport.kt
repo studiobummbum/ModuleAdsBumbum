@@ -10,7 +10,8 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 
 /**
- * Shared Fake SDK wiring: test dispatcher + deterministic object IDs + scheduler-backed clock.
+ * Shared deterministic adapter wiring for JVM tests (not a product Fake Ads path).
+ * Uses test dispatcher + deterministic object IDs + scheduler-backed clock.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class FakeSdkTestSupport(

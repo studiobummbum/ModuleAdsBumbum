@@ -1,29 +1,111 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/demo_bg"
     android:fitsSystemWindows="true"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/language_dup_title"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/language_dup_title"
-        android:textAppearance="?attr/textAppearanceHeadlineSmall" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="28dp"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/language_dup_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/language_dup_title"
+            android:textColor="@color/demo_text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:contentDescription="@string/language_selected_mark"
+            android:src="@drawable/ic_check_circle" />
+    </LinearLayout>
 
     <TextView
-        android:id="@+id/language_dup_selected"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp"
+        android:text="@string/language_system_section"
+        android:textColor="@color/demo_text_primary"
+        android:textSize="14sp" />
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
         android:layout_marginTop="12dp"
-        android:textAppearance="?attr/textAppearanceBodyLarge" />
+        android:minHeight="56dp"
+        app:cardBackgroundColor="@color/demo_surface_white"
+        app:cardCornerRadius="33dp"
+        app:cardElevation="0dp"
+        app:strokeWidth="0dp">
 
-    <FrameLayout
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:minHeight="56dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="8dp">
+
+            <ImageView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:contentDescription="@string/language_default"
+                android:src="@drawable/ic_language_globe" />
+
+            <TextView
+                android:id="@+id/language_dup_selected"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:textColor="@color/demo_text_primary"
+                android:textSize="14sp" />
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="@string/language_selected_mark"
+                android:src="@drawable/ic_radio_checked" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:paddingHorizontal="16dp"
+        android:text="@string/language_list_section"
+        android:textColor="@color/demo_text_primary"
+        android:textSize="14sp" />
+
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_marginTop="12dp"
+        android:layout_weight="1"
+        android:paddingHorizontal="16dp">
+
+        <LinearLayout
+            android:id="@+id/language_dup_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
 
     <FrameLayout
         android:id="@+id/native_language_dup_container"
@@ -34,10 +116,12 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/language_dup_next"
+        style="@style/Widget.AdsDemo.ContinueButton"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:minHeight="48dp"
+        android:layout_height="44dp"
+        android:layout_marginHorizontal="27dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="16dp"
         android:text="@string/language_next" />
 
 </LinearLayout>

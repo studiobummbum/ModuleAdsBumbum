@@ -1,7 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="brand_primary">#0061A4</color>
+    <color name="brand_primary">#2485F6</color>
     <color name="brand_on_primary">#FFFFFF</color>
-    <color name="brand_primary_container">#D1E4FF</color>
+    <color name="brand_primary_container">#D0E6FF</color>
     <color name="brand_on_primary_container">#001D36</color>
+
+    <color name="demo_bg">#F0F7FF</color>
+    <color name="demo_primary">#2485F6</color>
+    <color name="demo_primary_track">#D0E6FF</color>
+    <color name="demo_ad_media">#D9D9D9</color>
+    <color name="demo_ad_badge">#B1B1B1</color>
+    <color name="demo_text_primary">#101820</color>
+    <color name="demo_text_secondary">#535353</color>
+    <color name="demo_surface_white">#FFFFFF</color>
+    <color name="demo_scrim">#99000000</color>
+    <color name="demo_auto_skip_bg">#52000000</color>
+    <color name="demo_dot_inactive">#CFD8DC</color>
 </resources>

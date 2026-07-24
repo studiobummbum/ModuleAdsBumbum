@@ -27,7 +27,7 @@ public class AdMobAppOpenAdapter(
         if (request.format != AdFormat.APP_OPEN) {
             return AdLoadResult.Failure("Adapter for APP_OPEN cannot load ${request.format}")
         }
-        AdMobSdkInitializer.ensureInitialized(appContext)
+        AdMobSdkInitializer.awaitInitialized(appContext)
         val resolved = resolver.resolve(AdFormat.APP_OPEN, request.adUnit)
         return AdMobMainThread.onMain {
             suspendCancellableCoroutine { continuation ->

@@ -5,6 +5,8 @@
         <item name="colorOnPrimary">@color/brand_on_primary</item>
         <item name="colorPrimaryContainer">@color/brand_primary_container</item>
         <item name="colorOnPrimaryContainer">@color/brand_on_primary_container</item>
+        <item name="android:colorBackground">@color/demo_bg</item>
+        <item name="android:windowBackground">@color/demo_bg</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>
