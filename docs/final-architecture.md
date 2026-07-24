@@ -1,7 +1,8 @@
 # Final architecture
 
-Date: 2026-07-24 (Phase 18)  
+Date: 2026-07-24 (Phase 18 + Task 19)  
 Stack: Kotlin, XML + ViewBinding, Activity / Fragment / ViewPager2, Coroutines + StateFlow / SharedFlow, multi-module Gradle. **No Jetpack Compose.**
+**No Fake Ads SDK in the product path** (see [task-19-admob-only-layout-audit.md](task-19-admob-only-layout-audit.md)).
 
 ## Module graph
 
@@ -99,5 +100,6 @@ Rules:
 - Debug: **AdMob Test** (Google sample units) or **AdMob** (RC `adunit` as-is) via debug dashboard (`DemoSdkBackendStore`).
 - Release: forced `DemoSdkBackend.AdMob` — replace bundled sample units with **publisher** units in Remote Config.
 - Go-live: same AdMob adapters; only swap `adunit` / App ID. No Fake Ads path.
+- Task 19 changelog (remove Fake module, layout audit, init await): [task-19-admob-only-layout-audit.md](task-19-admob-only-layout-audit.md).
 - Bundled sample inventory + weight matrix: [production-weight-table.md](production-weight-table.md).
 - Closed policies (System Back, audience, units): [open-decisions.md](open-decisions.md).

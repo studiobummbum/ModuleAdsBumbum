@@ -30,6 +30,9 @@ Mobile Ads. `:ads-debug` is `debugImplementation` only.
 - **Production:** switch backend to **AdMob** and replace `list_ads[].adunit`
   (and App ID) in Remote Config with **publisher** units. Same adapters and core.
 
+Task 19 change log (remove Fake SDK + layout audit):
+[docs/task-19-admob-only-layout-audit.md](docs/task-19-admob-only-layout-audit.md)
+
 ## UI and build
 
 - Kotlin, XML layouts, ViewBinding

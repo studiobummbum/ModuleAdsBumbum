@@ -57,3 +57,9 @@ Open decisions are closed — see [open-decisions.md](open-decisions.md) and [pr
 - [ ] Wire real analytics remote adapter if required
 
 **Do not claim production-ready while any Gradle gate fails.**
+
+## Task 19 follow-up (2026-07-24)
+
+- Fake Ads SDK removed from runtime; demo is AdMob-only.
+- Emulator QA: AdMob Test (Google sample units). Production: publisher units in Remote Config.
+- Full change log: [task-19-admob-only-layout-audit.md](task-19-admob-only-layout-audit.md).

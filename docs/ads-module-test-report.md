@@ -71,6 +71,7 @@ py -3 .cursor/skills/android-ads-module-engineering/scripts/validate_ads_config.
 
 - Phase 16 did **not** add product features; only tests, fixtures, harness, AGP release unit-test enablement, and this report.
 - Phase 18 re-ran all gates, added release docs under `docs/`, and hardened `OnboardingFragmentLifecycleTest.destroyView_releasesBoundAd` to seed READY inventory (no AdMob network dependency).
+- Task 19 removed Fake Ads from the product path; JVM stubs live under `ads-core/src/test/.../fake`. See [task-19-admob-only-layout-audit.md](task-19-admob-only-layout-audit.md).
 - Native Full close-delay / auto-skip **behavior** is asserted in unit tests (`NativeFullSplashControllerTest`). Instrumentation covers layout contract (top-end X, initial invisible) and missing-session finish.
 - System Back policy at Full 1/2 remains an open decision (demo intercepts + logs); see [open-decisions.md](open-decisions.md).
-- **Not production-ready** while open decisions (weights, ad units, audience, System Back) and demo Fake/AdMob Test wiring remain.
+- **Not production-ready** while publisher ad units / audience / host signing still need host-app provisioning. Emulator QA uses AdMob Test (Google sample units), not Fake UI.

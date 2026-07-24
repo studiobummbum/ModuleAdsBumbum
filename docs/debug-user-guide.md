@@ -56,3 +56,9 @@ Bundled demo RC already contains Google sample units — see [production-weight-
 
 - Do not ship `:ads-debug` on release variants.
 - Do not hardcode production `ca-app-pub-…` units into the debug gallery — put publisher units in Remote Config when going live.
+
+## Related docs
+
+- Task 19 remove Fake + layout audit: [task-19-admob-only-layout-audit.md](task-19-admob-only-layout-audit.md)
+- Architecture: [final-architecture.md](final-architecture.md)
+- Sample / publisher units: [production-weight-table.md](production-weight-table.md)
