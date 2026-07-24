@@ -7,13 +7,13 @@
       "enable_ad": true,
       "weight": 100,
       "type": "inter",
-      "adunit": "ca-app-pub-3940256097505524/1033173712"
+      "adunit": "ca-app-pub-3940256099942544/1033173712"
     },
     {
       "enable_ad": true,
       "weight": 90,
       "type": "inter",
-      "adunit": "ca-app-pub-3940256097505524/1033173712"
+      "adunit": "ca-app-pub-3940256099942544/1033173712"
     }
   ]
 }

@@ -51,14 +51,15 @@ Bundled `adunit` values are **Google official sample / test units** (same set as
 
 | Format | Ad unit |
 | --- | --- |
-| Interstitial | `ca-app-pub-3940256097505524/1033173712` |
-| App Open | `ca-app-pub-3940256097505524/9257395921` |
-| Native / Native Full | `ca-app-pub-3940256097505524/2247696110` |
-| Banner | `ca-app-pub-3940256097505524/6300978111` |
-| App ID | `ca-app-pub-3940256097505524~3347511713` |
+| Interstitial | `ca-app-pub-3940256099942544/1033173712` |
+| App Open | `ca-app-pub-3940256099942544/9257395921` |
+| Native / Native Full | `ca-app-pub-3940256099942544/2247696110` |
+| Banner | `ca-app-pub-3940256099942544/9214589741` |
+| Rewarded | `ca-app-pub-3940256099942544/5224354917` |
+| App ID | `ca-app-pub-3940256099942544~3347511713` |
 
 Host apps replace these with real AdMob (or mediation) **publisher** units in production Remote Config.  
 `DemoSdkBackend.AdMob` / `AdMobRuntimeMode.PRODUCTION` uses RC units as-is.  
 `DemoSdkBackend.AdMobTest` remaps every request to the Google sample units above (emulator / QA).
 
-Demo app ID (manifest): `ca-app-pub-3940256097505524~3347511713`.
+Demo app ID (manifest): `ca-app-pub-3940256099942544~3347511713`.

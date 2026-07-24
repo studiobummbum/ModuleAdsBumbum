@@ -136,7 +136,7 @@ class AdMobTestAdUnitsSmokeTest {
             AdMobTestAdUnits.BANNER,
         )
         units.forEach { unit ->
-            assertTrue(unit.startsWith("ca-app-pub-3940256097505524/"))
+            assertTrue(unit.startsWith("ca-app-pub-3940256099942544/"))
             assertTrue(AdMobTestAdUnits.isOfficialTestUnit(unit))
         }
     }
